@@ -17,18 +17,24 @@ World :: struct {
 world_init :: proc(world: ^World) {
 	player_init(&world.player)
 	raylib.DisableCursor()
-	world.floor_instance_buffer = r3d.LoadInstanceBuffer(WORLD_SIZE_X * WORLD_SIZE_Y, {.POSITION})
+	world.floor_instance_buffer = r3d.LoadInstanceBuffer(WORLD_SIZE_X * WORLD_SIZE_Y, {.POSITION, .COLOR})
 	positions := cast([^]linalg.Vector3f32)r3d.MapInstances(
 		world.floor_instance_buffer,
 		{.POSITION},
 		false,
 	)
+	colors := cast([^]raylib.Color)r3d.MapInstances(
+		world.floor_instance_buffer,
+		{.COLOR},
+		false
+	)
 	for row in 0 ..< WORLD_SIZE_Y {
 		for column in 0 ..< WORLD_SIZE_X {
 			positions[row * WORLD_SIZE_X + column] = {f32(column), 0, f32(row)}
+			colors[row * WORLD_SIZE_X + column] = raylib.GREEN
 		}
 	}
-	r3d.UnmapInstances(world.floor_instance_buffer, {.POSITION})
+	r3d.UnmapInstances(world.floor_instance_buffer, {.POSITION, .COLOR})
 	light := r3d.CreateLight(.DIR)
 	r3d.SetLightDirection(light, {0, -1, 0})
 	r3d.EnableLight(light)
@@ -71,11 +77,9 @@ world_draw :: proc(world: ^World, game_state: ^Game_State) {
 }
 
 world_draw_floor :: proc(world: ^World, assets: Assets) {
-	material_index := assets.detailed_floor.meshMaterials[0]
-	material := assets.detailed_floor.materials[material_index]
 	r3d.DrawMeshInstanced(
-		assets.detailed_floor.meshes[0],
-		material,
+		assets.cube,
+		r3d.GetDefaultMaterial(),
 		world.floor_instance_buffer,
 		WORLD_SIZE_X * WORLD_SIZE_Y,
 	)

@@ -48,19 +48,26 @@ VECTOR_FORWARD :: linalg.Vector3f32{0.0, 0.0, -1.0}
 VECTOR_ZERO :: linalg.Vector3f32{0.0, 0.0, 0.0}
 
 Player :: struct {
-
-	camera:           raylib.Camera3D,
+	camera:            raylib.Camera3D,
 	view_model_camera: raylib.Camera3D,
-	position:         linalg.Vector3f32,
-	velocity:         linalg.Vector3f32,
-	direction:        linalg.Vector3f32,
-	look_rotation:    linalg.Vector2f32,
-	head_bob_timer:   f32,
-	walk_bob_lerp:    f32,
-	head_height_lerp: f32,
-	camera_lean:      linalg.Vector2f32,
-	is_grounded:      bool,
-	view_model:       View_Model,
+	position:          linalg.Vector3f32,
+	velocity:          linalg.Vector3f32,
+	direction:         linalg.Vector3f32,
+	look_rotation:     linalg.Vector2f32,
+	head_bob_timer:    f32,
+	walk_bob_lerp:     f32,
+	head_height_lerp:  f32,
+	camera_lean:       linalg.Vector2f32,
+	is_grounded:       bool,
+	view_model:        View_Model,
+}
+
+player_shoot_ray :: proc(player: Player) {
+	screen_center := linalg.Vector2f32 {
+		f32(raylib.GetScreenWidth()) / 2,
+		f32(raylib.GetScreenHeight()) / 2,
+	}
+	ray := raylib.GetScreenToWorldRay(screen_center, player.camera)
 }
 
 player_init :: proc(player: ^Player) {
@@ -83,6 +90,7 @@ player_update :: proc(player: ^Player, assets: Assets) {
 
 	apply_camera_transformations(player)
 	apply_footstep_sound(player, assets)
+	player_shoot_ray(player^)
 }
 
 apply_footstep_sound :: proc(player: ^Player, assets: Assets) {

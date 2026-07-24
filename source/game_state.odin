@@ -11,7 +11,7 @@ Game_State :: struct {
 	assets:        Assets,
 	world:         World,
 	splash_screen: Splash_Screen,
-	gui_camera:     raylib.Camera2D,
+	gui_camera:    raylib.Camera2D,
 	scene:         Scene,
 }
 game_state_init :: proc(game_state: ^Game_State) {
