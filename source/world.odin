@@ -36,7 +36,7 @@ world_init :: proc(world: ^World) {
 
 world_update :: proc(world: ^World, game_state: ^Game_State) {
 	gui_camera_update(&game_state.gui_camera)
-	player_update(&world.player)
+	player_update(&world.player, game_state.assets)
 }
 
 world_draw :: proc(world: ^World, game_state: ^Game_State) {

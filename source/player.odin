@@ -1,9 +1,10 @@
 package game
 
+import "core:fmt"
 import "core:math"
 import "core:math/linalg"
+import "core:math/rand"
 import "vendor:raylib"
-
 GRAVITY :: 32.0
 MAX_RUN_SPEED :: 7.5
 MAX_CROUCH_SPEED :: 2.5
@@ -38,6 +39,9 @@ PITCH_CLAMP_PADDING :: 0.0001
 PITCH_MAX_LIMIT :: math.PI / 2.0 - PITCH_CLAMP_PADDING
 PITCH_MIN_LIMIT :: -math.PI / 2.0 + PITCH_CLAMP_PADDING
 
+WALK_BOB_SPEED :: 1
+CROUCH_BOB_SPEED :: 0.5
+
 VECTOR_UP :: linalg.Vector3f32{0.0, 1.0, 0.0}
 VECTOR_DOWN :: linalg.Vector3f32{0.0, -1.0, 0.0}
 VECTOR_FORWARD :: linalg.Vector3f32{0.0, 0.0, -1.0}
@@ -56,7 +60,7 @@ Player :: struct {
 	is_grounded:      bool,
 }
 
-player_update :: proc(player: ^Player) {
+player_update :: proc(player: ^Player, assets: Assets) {
 	delta_time := raylib.GetFrameTime()
 
 	apply_mouse_look(player)
@@ -68,6 +72,24 @@ player_update :: proc(player: ^Player) {
 	update_camera_stance_and_effects(player, move_right, move_forward, is_crouching, delta_time)
 
 	apply_camera_transformations(player)
+	apply_footstep_sound(player, assets)
+}
+
+apply_footstep_sound :: proc(player: ^Player, assets: Assets) {
+	horizontal_velocity := linalg.Vector3f32{player.velocity.x, 0, player.velocity.z}
+	is_moving := linalg.length(horizontal_velocity) > 0.01
+
+	if !player.is_grounded || !is_moving {
+		return
+	}
+	previous_bob := math.sin(
+		(player.head_bob_timer - raylib.GetFrameTime() * SPEED_HEAD_BOB_TIMER) * math.PI,
+	)
+	current_bob := math.sin(player.head_bob_timer * math.PI)
+	if (previous_bob < 0.0 && current_bob >= 0.0) || (previous_bob > 0.0 && current_bob <= 0.0) {
+		random_index := rand.int_range(0, AMOUNT_OF_CONCRETE_FOOTSTEPS)
+		raylib.PlaySound(assets.concrete_footsteps[random_index])
+	}
 }
 
 apply_mouse_look :: proc(player: ^Player) {
@@ -202,7 +224,13 @@ update_camera_stance_and_effects :: proc(
 
 	is_moving := move_forward != 0.0 || move_right != 0.0
 	if player.is_grounded && is_moving {
-		player.head_bob_timer += delta_time * SPEED_HEAD_BOB_TIMER
+		bob_speed_multiplier: f32
+		if is_crouching {
+			bob_speed_multiplier = CROUCH_BOB_SPEED
+		} else {
+			bob_speed_multiplier = WALK_BOB_SPEED
+		}
+		player.head_bob_timer += delta_time * SPEED_HEAD_BOB_TIMER * bob_speed_multiplier
 		player.walk_bob_lerp = math.lerp(
 			player.walk_bob_lerp,
 			1.0,
@@ -298,6 +326,7 @@ apply_head_bob_and_finalize_camera :: proc(
 	rotated_pitch_vector: linalg.Vector3f32,
 	camera_right_vector: linalg.Vector3f32,
 ) {
+	is_crouching := raylib.IsKeyDown(CROUCH)
 	head_sin_wave := math.sin(player.head_bob_timer * math.PI)
 	head_cos_wave := math.cos(player.head_bob_timer * math.PI)
 

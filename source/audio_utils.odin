@@ -7,7 +7,7 @@ set_sound_position :: proc(
 	listener: raylib.Camera3D,
 	sound: raylib.Sound,
 	position: linalg.Vector3f32,
-	max_distance: f32,
+	max_distance: f32 = 1,
 ) {
 	// Calculate direction vector and distance between listener and sound source
 	direction := position - listener.position

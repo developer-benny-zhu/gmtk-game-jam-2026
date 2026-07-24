@@ -19,6 +19,7 @@ init :: proc() {
 	run = true
 	raylib.SetConfigFlags({.WINDOW_RESIZABLE, .WINDOW_HIGHDPI, .VSYNC_HINT})
 	raylib.InitWindow(VIRTUAL_WINDOW_WIDTH, VIRTUAL_WINDOW_HEIGHT, "GMTK Game Jam 2026")
+	raylib.InitAudioDevice()
 	r3d.Init(VIRTUAL_WINDOW_WIDTH, VIRTUAL_WINDOW_HEIGHT)
 	game_state_init(&game_state)
 
