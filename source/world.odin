@@ -4,6 +4,8 @@ import "core:math/linalg"
 import "vendor/r3d"
 import "vendor:raylib"
 import "vendor:raylib/rlgl"
+import "core:math/rand"
+
 WORLD_SIZE_X :: 100
 WORLD_SIZE_Y :: 100
 
@@ -38,6 +40,8 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 	player_update(&world.player, game_state.assets)
 	if raylib.IsMouseButtonPressed(.LEFT) {
 		view_model_add_recoil(&world.player.view_model)
+		random_index := rand.int_range(0, AMOUNT_OF_LASER_SOUNDS)
+		raylib.PlaySound(game_state.assets.laser_sounds[random_index])
 	}
 }
 

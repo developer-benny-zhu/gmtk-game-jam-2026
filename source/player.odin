@@ -97,8 +97,8 @@ apply_footstep_sound :: proc(player: ^Player, assets: Assets) {
 	)
 	current_bob := math.sin(player.head_bob_timer * math.PI)
 	if (previous_bob < 0.0 && current_bob >= 0.0) || (previous_bob > 0.0 && current_bob <= 0.0) {
-		random_index := rand.int_range(0, AMOUNT_OF_CONCRETE_FOOTSTEPS)
-		raylib.PlaySound(assets.concrete_footsteps[random_index])
+		random_index := rand.int_range(0, AMOUNT_OF_CONCRETE_FOOTSTEP_SOUNDS)
+		raylib.PlaySound(assets.concrete_footstep_sounds[random_index])
 	}
 }
 
