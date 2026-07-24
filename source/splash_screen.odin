@@ -22,20 +22,12 @@ GAME_NAME_SEGMENT_TEXT :: "GMTK Game Jam 2026"
 
 SEGMENT_TRANSITION_DURATION :: 0.3
 
-splash_screen_camera: raylib.Camera2D
-
 Splash_Screen :: struct {
 	current_time: f32,
 }
 
 splash_screen_update :: proc(splash_screen: ^Splash_Screen, game_state: ^Game_State) {
-	render_width := f32(raylib.GetRenderWidth())
-	render_height := f32(raylib.GetRenderHeight())
-	scale := math.min(render_width / VIRTUAL_WINDOW_WIDTH, render_height / VIRTUAL_WINDOW_HEIGHT)
-	splash_screen_camera.offset = {render_width * 0.5, render_height * 0.5}
-	splash_screen_camera.target = {VIRTUAL_WINDOW_WIDTH * 0.5, VIRTUAL_WINDOW_HEIGHT * 0.5}
-	splash_screen_camera.zoom = scale
-
+	gui_camera_update(&game_state.gui_camera)
 	splash_screen.current_time += raylib.GetFrameTime()
 
 	text: cstring
@@ -78,7 +70,7 @@ splash_screen_update :: proc(splash_screen: ^Splash_Screen, game_state: ^Game_St
 
 	raylib.BeginDrawing()
 	raylib.ClearBackground(raylib.BLACK)
-	raylib.BeginMode2D(splash_screen_camera)
+	raylib.BeginMode2D(game_state.gui_camera)
 
 	draw_text(
 		text,

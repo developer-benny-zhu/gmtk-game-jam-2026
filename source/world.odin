@@ -16,42 +16,41 @@ world_init :: proc(world: ^World) {
 	raylib.DisableCursor()
 	world.floor_instance_buffer = r3d.LoadInstanceBuffer(
 		WORLD_SIZE_X * WORLD_SIZE_Y,
-		{.POSITION, .SCALE},
+		{.POSITION},
 	)
 	positions := cast([^]linalg.Vector3f32)r3d.MapInstances(
 		world.floor_instance_buffer,
 		{.POSITION},
 		false,
 	)
-	scales := cast([^]linalg.Vector3f32)r3d.MapInstances(
-		world.floor_instance_buffer,
-		{.SCALE},
-		false,
-	)
 	for row in 0 ..< WORLD_SIZE_Y {
 		for column in 0 ..< WORLD_SIZE_X {
 			positions[row * WORLD_SIZE_X + column] = {f32(column), 0, f32(row)}
-			scales[row * WORLD_SIZE_X + column] = {1, 1, 1}
 		}
 	}
-	r3d.UnmapInstances(world.floor_instance_buffer, {.POSITION, .SCALE})
+	r3d.UnmapInstances(world.floor_instance_buffer, {.POSITION})
 	light := r3d.CreateLight(.DIR)
 	r3d.SetLightDirection(light, {0, -1, 0})
 	r3d.EnableLight(light)
 }
 
-world_update :: proc(world: ^World) {
+world_update :: proc(world: ^World, game_state: ^Game_State) {
+	gui_camera_update(&game_state.gui_camera)
 	player_update(&world.player)
 }
 
-world_draw :: proc(world: ^World, assets: Assets) {
+world_draw :: proc(world: ^World, game_state: ^Game_State) {
 	raylib.BeginDrawing()
 	raylib.ClearBackground(raylib.BLACK)
 	rlgl.SetClipPlanes(0.5, 1000.0)
 	r3d.Begin(world.player.camera)
 	raylib.DrawGrid(50, 1.0)
-	world_draw_floor(world, assets)
+	world_draw_floor(world, game_state.assets)
 	r3d.End()
+	raylib.BeginMode2D(game_state.gui_camera)
+	draw_crosshair()
+
+	raylib.EndMode2D()
 	raylib.DrawFPS(10, 10)
 	raylib.EndDrawing()
 }
