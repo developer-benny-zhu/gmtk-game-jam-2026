@@ -48,7 +48,9 @@ VECTOR_FORWARD :: linalg.Vector3f32{0.0, 0.0, -1.0}
 VECTOR_ZERO :: linalg.Vector3f32{0.0, 0.0, 0.0}
 
 Player :: struct {
+
 	camera:           raylib.Camera3D,
+	view_model_camera: raylib.Camera3D,
 	position:         linalg.Vector3f32,
 	velocity:         linalg.Vector3f32,
 	direction:        linalg.Vector3f32,
@@ -58,6 +60,14 @@ Player :: struct {
 	head_height_lerp: f32,
 	camera_lean:      linalg.Vector2f32,
 	is_grounded:      bool,
+	view_model:       View_Model,
+}
+
+player_init :: proc(player: ^Player) {
+	player.view_model_camera.fovy = 60
+	player.view_model_camera.projection = .PERSPECTIVE
+	player.view_model_camera.up = {0, 1, 0}
+	player.view_model_camera.target = {0, 0, -1}
 }
 
 player_update :: proc(player: ^Player, assets: Assets) {

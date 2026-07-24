@@ -13,11 +13,9 @@ World :: struct {
 }
 
 world_init :: proc(world: ^World) {
+	player_init(&world.player)
 	raylib.DisableCursor()
-	world.floor_instance_buffer = r3d.LoadInstanceBuffer(
-		WORLD_SIZE_X * WORLD_SIZE_Y,
-		{.POSITION},
-	)
+	world.floor_instance_buffer = r3d.LoadInstanceBuffer(WORLD_SIZE_X * WORLD_SIZE_Y, {.POSITION})
 	positions := cast([^]linalg.Vector3f32)r3d.MapInstances(
 		world.floor_instance_buffer,
 		{.POSITION},
@@ -35,8 +33,12 @@ world_init :: proc(world: ^World) {
 }
 
 world_update :: proc(world: ^World, game_state: ^Game_State) {
+	view_model_update(&world.player.view_model)
 	gui_camera_update(&game_state.gui_camera)
 	player_update(&world.player, game_state.assets)
+	if raylib.IsMouseButtonPressed(.LEFT) {
+		view_model_add_recoil(&world.player.view_model)
+	}
 }
 
 world_draw :: proc(world: ^World, game_state: ^Game_State) {
@@ -49,6 +51,15 @@ world_draw :: proc(world: ^World, game_state: ^Game_State) {
 	r3d.End()
 	raylib.BeginMode2D(game_state.gui_camera)
 	draw_crosshair()
+
+	raylib.BeginMode3D(world.player.view_model_camera)
+	view_model_draw(
+		world.player.view_model,
+		game_state.assets,
+		world.player.head_bob_timer,
+		world.player.walk_bob_lerp,
+	)
+	raylib.EndMode3D()
 
 	raylib.EndMode2D()
 	raylib.DrawFPS(10, 10)
