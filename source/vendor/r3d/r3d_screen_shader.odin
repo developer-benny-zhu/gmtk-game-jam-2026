@@ -1,0 +1,180 @@
+/* r3d_screen_shader.odin -- R3D Screen Shader Module.
+ *
+ * Copyright (c) 2025-2026 Le Juez Victor
+ *
+ * This software is provided 'as-is', without any express or implied warranty.
+ * For conditions of distribution and use, see accompanying LICENSE file.
+ */
+package r3d
+
+import rl "vendor:raylib"
+
+when ODIN_OS == .Windows {
+    foreign import lib {
+        "windows/r3d.lib",
+    }
+} else when ODIN_OS == .Linux {
+    foreign import lib {
+        "linux/libr3d.a",
+    }
+} else when ODIN_OS == .Darwin {
+    foreign import lib {
+        "/macos/libr3d.a",
+    }
+}
+
+// ========================================
+// OPAQUE TYPES
+// ========================================
+ScreenShader :: struct {}
+
+/**
+ * @brief Screen shader execution stage.
+ *
+ * Screen shaders are custom fullscreen post-processing passes inserted at
+ * specific points of the frame.
+ *
+ * The SCENE stage runs before built-in post-processing and receives
+ * scene-referred HDR linear color. It is an advanced stage: effects
+ * may affect bloom, auto exposure, and all later passes.
+ *
+ * The POST stage runs after built-in HDR post-processing, but before output
+ * conversion. It still receives scene-referred HDR linear color.
+ *
+ * The OUTPUT stage runs after tonemapping/output conversion, but before
+ * anti-aliasing. It receives display-referred LDR color and is suitable for
+ * most artistic image effects.
+ *
+ * The FINAL stage runs after anti-aliasing, before the final blit. It receives
+ * the final display-referred image and is suitable for overlays, grain,
+ * scanlines, sharpening, fades, and debug visualization.
+ */
+ScreenShaderStage :: enum u32 {
+    SCENE  = 0, ///< Before built-in post-processing; advanced HDR scene stage.
+    POST   = 1, ///< After built-in HDR post-processing, before output conversion.
+    OUTPUT = 2, ///< After output conversion, before anti-aliasing.
+    FINAL  = 3, ///< After anti-aliasing, before final blit.
+    COUNT  = 4, ///< Number of screen shader stages.
+}
+
+@(default_calling_convention="c", link_prefix="R3D_")
+foreign lib {
+    /**
+     * @brief Loads a screen shader from a file.
+     *
+     * The shader must define a single entry point:
+     * `void fragment()`. Any other entry point, such as `vertex()`,
+     * or any varyings will be ignored.
+     *
+     * @param filePath Path to the shader source file.
+     * @return Pointer to the loaded screen shader, or NULL on failure.
+     */
+    LoadScreenShader :: proc(filePath: cstring) -> ^ScreenShader ---
+
+    /**
+     * @brief Loads a screen shader from a source code string in memory.
+     *
+     * The shader must define a single entry point:
+     * `void fragment()`. Any other entry point, such as `vertex()`,
+     * or any varyings will be ignored.
+     *
+     * @param code Null-terminated shader source code.
+     * @return Pointer to the loaded screen shader, or NULL on failure.
+     */
+    LoadScreenShaderFromMemory :: proc(code: cstring) -> ^ScreenShader ---
+
+    /**
+     * @brief Creates an alias of an existing screen shader.
+     *
+     * The alias shares the same compiled program as the original but holds its own
+     * independent uniform and sampler state. Typical use cases include pre-configuring
+     * aliases for distinct effects (e.g. different convolution kernels), or running
+     * the same shader multiple times in a post-process chain with different parameters
+     * at each pass.
+     *
+     * Uniform and sampler state is copied from the original at the moment this
+     * function is called, not from the shader source defaults. Any values set
+     * on the original after compilation but before this call will be reflected
+     * in the alias; values set afterward will not.
+     *
+     * @note The alias does not own the program. Always unload all aliases before
+     *       unloading the original, or the alias program references become dangling.
+     *
+     * @param shader The original screen shader to alias.
+     * @return Pointer to the alias, or NULL on failure.
+     */
+    LoadScreenShaderAlias :: proc(shader: ^ScreenShader) -> ^ScreenShader ---
+
+    /**
+     * @brief Unloads and destroys a screen shader.
+     *
+     * If the shader owns its program shaders (i.e. it was created with @ref R3D_LoadScreenShader
+     * or @ref R3D_LoadScreenShaderFromMemory), they are deleted. Aliases created from this
+     * shader via @ref R3D_LoadScreenShaderAlias must be unloaded beforehand, as they
+     * share the same programs and will be left with dangling references.
+     *
+     * @param shader Screen shader to unload.
+     */
+    UnloadScreenShader :: proc(shader: ^ScreenShader) ---
+
+    /**
+     * @brief Sets a uniform value for the current frame.
+     *
+     * Once a uniform is set, it remains valid for the all frames.
+     * If an uniform is set multiple times during the same frame,
+     * the last value defined before R3D_End() is used.
+     *
+     * Supported types:
+     * bool, int, float,
+     * ivec2, ivec3, ivec4,
+     * vec2, vec3, vec4,
+     * mat2, mat3, mat4
+     *
+     * @warning Boolean values are read as 4 bytes.
+     *
+     * @param shader Target screen shader.
+     *               May be NULL. In that case, the call is ignored
+     *               and a warning is logged.
+     * @param name   Name of the uniform. Must not be NULL.
+     * @param value  Pointer to the uniform value. Must not be NULL.
+     */
+    SetScreenShaderUniform :: proc(shader: ^ScreenShader, name: cstring, value: rawptr) ---
+
+    /**
+     * @brief Sets a texture sampler for the current frame.
+     *
+     * Once a sampler is set, it remains valid for all frames.
+     * If a sampler is set multiple times during the same frame,
+     * the last value defined before R3D_End() is used.
+     *
+     * Supported samplers:
+     * sampler1D, sampler2D, sampler3D, samplerCube
+     *
+     * @param shader  Target screen shader.
+     *                May be NULL. In that case, the call is ignored
+     *                and a warning is logged.
+     * @param name    Name of the sampler uniform. Must not be NULL.
+     * @param texture rl.Texture to bind to the sampler.
+     */
+    SetScreenShaderSampler :: proc(shader: ^ScreenShader, name: cstring, texture: rl.Texture) ---
+
+    /**
+     * @brief Sets the screen shader chain for a given stage.
+     *
+     * Screen shaders are executed in the order provided. The maximum number of
+     * shaders per stage is `R3D_MAX_SCREEN_SHADERS`; extra entries are ignored
+     * and a warning is emitted.
+     *
+     * Shader pointers are copied internally, so the original array may be modified
+     * or freed after the call. NULL entries are allowed and skipped safely.
+     *
+     * Calling this function replaces the previous chain for the selected stage.
+     * To clear a stage, pass `shaders = NULL` or `count = 0`.
+     *
+     * @param stage Screen shader stage to configure.
+     * @param shaders Array of pointers to R3D_ScreenShader objects.
+     * @param count Number of shaders in the array.
+     */
+    SetScreenShaderChain :: proc(stage: ScreenShaderStage, shaders: [^]^ScreenShader, count: i32) ---
+}
+
