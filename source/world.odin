@@ -97,7 +97,6 @@ check_player_damage :: proc(world: ^World, game_state: Game_State) {
 
 world_init :: proc(world: ^World) {
 	player_init(&world.player)
-	raylib.DisableCursor()
 	world.floor_instance_buffer = r3d.LoadInstanceBuffer(
 		WORLD_SIZE_X * WORLD_SIZE_Y,
 		{.POSITION, .COLOR},

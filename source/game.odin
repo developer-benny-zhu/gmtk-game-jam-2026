@@ -10,6 +10,7 @@ VIRTUAL_WINDOW_HEIGHT :: 648
 VIRTUAL_WINDOW_CENTER_X :: VIRTUAL_WINDOW_WIDTH / 2
 VIRTUAL_WINDOW_CENTER_Y :: VIRTUAL_WINDOW_HEIGHT / 2
 LETTER_BOX_COLOR :: raylib.BLACK
+TITLE :: "Stellar"
 
 
 game_state: Game_State
@@ -18,7 +19,7 @@ run: bool
 init :: proc() {
 	run = true
 	raylib.SetConfigFlags({.WINDOW_RESIZABLE, .WINDOW_HIGHDPI, .VSYNC_HINT})
-	raylib.InitWindow(VIRTUAL_WINDOW_WIDTH, VIRTUAL_WINDOW_HEIGHT, "GMTK Game Jam 2026")
+	raylib.InitWindow(VIRTUAL_WINDOW_WIDTH, VIRTUAL_WINDOW_HEIGHT, TITLE)
 	raylib.InitAudioDevice()
 	r3d.Init(VIRTUAL_WINDOW_WIDTH, VIRTUAL_WINDOW_HEIGHT)
 	game_state_init(&game_state)
