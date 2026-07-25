@@ -3,8 +3,8 @@ package game
 import "vendor:raylib"
 
 Scene :: enum u8 {
-	Main_Menu,
 	World,
+	Main_Menu,
 	Credits,
 	Splash_Screen,
 }
@@ -20,9 +20,9 @@ Game_State :: struct {
 }
 
 game_state_init :: proc(game_state: ^Game_State) {
-    assets_init(&game_state.assets)
-    main_menu_init(&game_state.main_menu, game_state^)
-    world_init(&game_state.world)
+	assets_init(&game_state.assets)
+	main_menu_init(&game_state.main_menu, game_state^)
+	world_init(&game_state.world)
 }
 
 game_state_update :: proc(game_state: ^Game_State) {

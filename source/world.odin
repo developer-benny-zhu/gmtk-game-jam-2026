@@ -382,6 +382,7 @@ world_draw :: proc(world: ^World, game_state: ^Game_State) {
 	raylib.BeginMode2D(game_state.gui_camera)
 	draw_crosshair(show_hitmarker = world.hitmarker_timer > 0.0)
 	draw_ui(world)
+	player_draw_hud(&world.player)
 	raylib.EndMode2D()
 
 	raylib.BeginMode3D(world.player.view_model_camera)
