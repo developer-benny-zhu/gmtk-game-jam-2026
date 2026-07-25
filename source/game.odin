@@ -23,6 +23,7 @@ init :: proc() {
 	raylib.InitAudioDevice()
 	r3d.Init(VIRTUAL_WINDOW_WIDTH, VIRTUAL_WINDOW_HEIGHT)
 	game_state_init(&game_state)
+	raylib.SetExitKey(nil)
 }
 
 update :: proc() {

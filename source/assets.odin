@@ -33,10 +33,10 @@ play_random_male_grunt_sound :: proc(assets: Assets) {
 
 set_environment :: proc(assets: ^Assets) {
 	env := r3d.GetEnvironment()
-	env.background.energy = 1.0
+	env.background.energy = 0.5
 	env.background.sky = assets.skybox
 	assets.ambient_map = r3d.GenAmbientMap(assets.skybox, {.ILLUMINATION, .REFLECTION})
-	env.ambient.energy = 1.0
+	env.ambient.energy = 0.5
 	env.ambient._map = assets.ambient_map
 }
 

@@ -3,10 +3,10 @@ package game
 import "vendor:raylib"
 
 Scene :: enum u8 {
-	Credits,
-	Main_Menu,
-	Splash_Screen,
 	World,
+	Main_Menu,
+	Credits,
+	Splash_Screen,
 }
 
 Game_State :: struct {
