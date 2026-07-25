@@ -399,9 +399,6 @@ world_draw :: proc(world: ^World, game_state: ^Game_State) {
 }
 
 draw_ui :: proc(world: ^World) {
-	screen_width := f32(raylib.GetScreenWidth())
-	screen_height := f32(raylib.GetScreenHeight())
-
 	if world.player.hurt_timer > 0.0 {
 		alpha_factor := world.player.hurt_timer / 0.25
 		flash_alpha := u8(raylib.Clamp(alpha_factor * 100.0, 0.0, 100.0))
@@ -409,8 +406,8 @@ draw_ui :: proc(world: ^World) {
 		raylib.DrawRectangle(
 			0,
 			0,
-			i32(screen_width),
-			i32(screen_height),
+			i32(VIRTUAL_WINDOW_WIDTH),
+			i32(VIRTUAL_WINDOW_HEIGHT),
 			raylib.Color{255, 0, 0, flash_alpha},
 		)
 	}
@@ -421,7 +418,7 @@ draw_ui :: proc(world: ^World) {
 		border_thickness: f32 = 14.0
 
 		raylib.DrawRectangleLinesEx(
-			raylib.Rectangle{0, 0, screen_width, screen_height},
+			raylib.Rectangle{0, 0, VIRTUAL_WINDOW_WIDTH, VIRTUAL_WINDOW_HEIGHT},
 			border_thickness,
 			raylib.Color{255, 0, 0, border_alpha},
 		)
@@ -456,7 +453,7 @@ draw_ui :: proc(world: ^World) {
 	font_size: i32 = 40
 	text_width := raylib.MeasureText(timer_text, font_size)
 
-	text_x := i32(screen_width / 2.0) - (text_width / 2)
+	text_x := i32(VIRTUAL_WINDOW_WIDTH / 2.0) - (text_width / 2)
 	text_y: i32 = 30
 
 	raylib.DrawText(timer_text, text_x + 3, text_y + 3, font_size, raylib.BLACK)
@@ -465,7 +462,7 @@ draw_ui :: proc(world: ^World) {
 	bar_width: f32 = 300.0
 	bar_height: f32 = 30.0
 	bar_x: f32 = 30.0
-	bar_y := screen_height - bar_height - 30.0
+	bar_y := VIRTUAL_WINDOW_HEIGHT - bar_height - 30.0
 
 	health_pct := world.player.health / 100.0
 	current_bar_width := math.max(0.0, bar_width * health_pct)

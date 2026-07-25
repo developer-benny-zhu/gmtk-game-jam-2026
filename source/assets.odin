@@ -19,6 +19,8 @@ Assets :: struct {
 	laser_sounds:             [AMOUNT_OF_LASER_SOUNDS]raylib.Sound,
 	male_grunt_sounds:        [AMOUNT_OF_MALE_GRUNT_SOUNDS]raylib.Sound,
 	items:                    [Item_Kind]raylib.Model,
+	skybox:                   r3d.Cubemap,
+	ambient_map:              r3d.AmbientMap,
 	cube:                     r3d.Mesh,
 	enemy_mesh:               r3d.Mesh,
 	projectile_mesh:          r3d.Mesh,
@@ -27,6 +29,15 @@ Assets :: struct {
 play_random_male_grunt_sound :: proc(assets: Assets) {
 	random_index := rand.int_range(0, AMOUNT_OF_MALE_GRUNT_SOUNDS)
 	raylib.PlaySound(assets.male_grunt_sounds[random_index])
+}
+
+set_environment :: proc(assets: ^Assets) {
+	env := r3d.GetEnvironment()
+	env.background.energy = 1.0
+	env.background.sky = assets.skybox
+	assets.ambient_map = r3d.GenAmbientMap(assets.skybox, {.ILLUMINATION, .REFLECTION})
+	env.ambient.energy = 1.0
+	env.ambient._map = assets.ambient_map
 }
 
 assets_init_male_grunt_sounds :: proc(assets: ^Assets) {
@@ -65,8 +76,10 @@ assets_init :: proc(assets: ^Assets) {
 	assets.cube = r3d.GenMeshCube(1, 1, 1)
 	assets.enemy_mesh = r3d.GenMeshSphere(2.0, 16, 16)
 	assets.projectile_mesh = r3d.GenMeshCube(0.4, 0.4, 2.0)
-}
 
+	assets.skybox = r3d.LoadCubemap("assets/skybox.png", .AUTO_DETECT)
+	set_environment(assets)
+}
 assets_destroy :: proc(assets: ^Assets) {
 	assets_destroy_laser_sounds(assets)
 	assets_destroy_items(assets)
@@ -75,6 +88,8 @@ assets_destroy :: proc(assets: ^Assets) {
 	r3d.UnloadMesh(assets.cube)
 	r3d.UnloadMesh(assets.enemy_mesh)
 	r3d.UnloadMesh(assets.projectile_mesh)
+	r3d.UnloadAmbientMap(assets.ambient_map)
+	r3d.UnloadCubemap(assets.skybox)
 }
 
 assets_destroy_concrete_footstep_sounds :: proc(assets: ^Assets) {
