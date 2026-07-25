@@ -13,6 +13,7 @@ WORLD_SIZE_Y :: 100
 TILE_WAIT_TIME :: 10.0
 TILE_LERP_TIME :: 1.0
 DAMAGE_PER_SECOND :: 10.0
+MAX_ENEMIES :: 100
 
 Tile_Phase :: enum {
 	Safe,
@@ -21,12 +22,33 @@ Tile_Phase :: enum {
 	Lerping_Green,
 }
 
+Enemy :: struct {
+	position:    linalg.Vector3f32,
+	base_y:      f32,
+	health:      f32,
+	hurt_timer:  f32,
+	shoot_timer: f32,
+	active:      bool,
+}
+
+Projectile :: struct {
+	position: linalg.Vector3f32,
+	velocity: linalg.Vector3f32,
+	rotation: linalg.Quaternionf32,
+	active:   bool,
+}
+
 World :: struct {
-	player:                Player,
-	floor_instance_buffer: r3d.InstanceBuffer,
-	tile_phase:            Tile_Phase,
-	tile_timer:            f32,
-	danger_tiles:          [WORLD_SIZE_X * WORLD_SIZE_Y]bool,
+	player:                     Player,
+	floor_instance_buffer:      r3d.InstanceBuffer,
+	enemy_instance_buffer:      r3d.InstanceBuffer,
+	projectile_instance_buffer: r3d.InstanceBuffer,
+	tile_phase:                 Tile_Phase,
+	tile_timer:                 f32,
+	danger_tiles:               [WORLD_SIZE_X * WORLD_SIZE_Y]bool,
+	enemies:                    [MAX_ENEMIES]Enemy,
+	projectiles:                [1000]Projectile,
+	hitmarker_timer:            f32,
 }
 
 lerp_color :: proc(c1, c2: raylib.Color, t: f32) -> raylib.Color {
@@ -99,6 +121,25 @@ world_init :: proc(world: ^World) {
 
 	world.tile_phase = .Safe
 	world.tile_timer = 0.0
+
+	world.enemy_instance_buffer = r3d.LoadInstanceBuffer(MAX_ENEMIES, {.POSITION, .COLOR})
+
+	world.projectile_instance_buffer = r3d.LoadInstanceBuffer(1000, {.POSITION, .ROTATION, .COLOR})
+
+	for i in 0 ..< MAX_ENEMIES {
+		base_y := rand.float32_range(5.0, 20.0)
+		world.enemies[i] = Enemy {
+			position    = {
+				rand.float32_range(5.0, f32(WORLD_SIZE_X) - 5.0),
+				base_y,
+				rand.float32_range(5.0, f32(WORLD_SIZE_Y) - 5.0),
+			},
+			base_y      = base_y,
+			health      = 100.0,
+			active      = true,
+			shoot_timer = rand.float32_range(1.0, 5.0),
+		}
+	}
 }
 
 world_update :: proc(world: ^World, game_state: ^Game_State) {
@@ -107,6 +148,89 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 		world.player.hurt_timer -= delta
 	}
 	world.tile_timer += delta
+
+	if world.hitmarker_timer > 0.0 {
+		world.hitmarker_timer -= delta
+	}
+
+	for i in 0 ..< MAX_ENEMIES {
+		if world.enemies[i].active {
+			if world.enemies[i].hurt_timer > 0.0 {
+				world.enemies[i].hurt_timer -= delta
+			}
+
+			world.enemies[i].position.y =
+				world.enemies[i].base_y + math.sin(f32(raylib.GetTime()) * 2.0 + f32(i)) * 2.0
+
+			world.enemies[i].shoot_timer -= delta
+			if world.enemies[i].shoot_timer <= 0.0 {
+				world.enemies[i].shoot_timer = rand.float32_range(2.0, 5.0)
+				for j in 0 ..< len(world.projectiles) {
+					if !world.projectiles[j].active {
+						world.projectiles[j].active = true
+						world.projectiles[j].position = world.enemies[i].position
+						direction := raylib.Vector3Normalize(
+							world.player.position - world.enemies[i].position,
+						)
+						world.projectiles[j].velocity = direction * 30.0
+
+						forward := linalg.Vector3f32{0, 0, 1}
+						axis := linalg.vector_cross(forward, direction)
+						dot := linalg.vector_dot(forward, direction)
+						if math.abs(dot + 1.0) < 0.00001 {
+							world.projectiles[j].rotation = linalg.quaternion_angle_axis_f32(
+								math.PI,
+								{0, 1, 0},
+							)
+						} else if math.abs(dot - 1.0) < 0.00001 {
+							world.projectiles[j].rotation = linalg.quaternion_angle_axis_f32(
+								0,
+								{0, 1, 0},
+							)
+						} else {
+							angle := math.acos(raylib.Clamp(dot, -1.0, 1.0))
+							world.projectiles[j].rotation = linalg.quaternion_angle_axis_f32(
+								angle,
+								linalg.vector_normalize(axis),
+							)
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	for i in 0 ..< len(world.projectiles) {
+		if world.projectiles[i].active {
+			world.projectiles[i].position += world.projectiles[i].velocity * delta
+
+			player_box := raylib.BoundingBox {
+				min = world.player.position - {0.5, 0.0, 0.5},
+				max = world.player.position + {0.5, 2.0, 0.5},
+			}
+			proj_box := raylib.BoundingBox {
+				min = world.projectiles[i].position - {0.2, 0.2, 0.2},
+				max = world.projectiles[i].position + {0.2, 0.2, 0.2},
+			}
+
+			if raylib.CheckCollisionBoxes(player_box, proj_box) {
+				world.projectiles[i].active = false
+				world.player.health -= 15.0
+				world.player.hurt_timer = 0.25
+				play_random_male_grunt_sound(game_state.assets)
+			}
+
+			if world.projectiles[i].position.y < 0.0 ||
+			   world.projectiles[i].position.y > 100.0 ||
+			   world.projectiles[i].position.x < -10.0 ||
+			   world.projectiles[i].position.x > f32(WORLD_SIZE_X) + 10.0 ||
+			   world.projectiles[i].position.z < -10.0 ||
+			   world.projectiles[i].position.z > f32(WORLD_SIZE_Y) + 10.0 {
+				world.projectiles[i].active = false
+			}
+		}
+	}
 
 	switch world.tile_phase {
 	case .Safe:
@@ -145,10 +269,34 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 	view_model_update(&world.player.view_model)
 	gui_camera_update(&game_state.gui_camera)
 	player_update(&world.player, game_state.assets)
+
 	if raylib.IsMouseButtonPressed(.LEFT) {
 		view_model_add_recoil(&world.player.view_model)
 		random_index := rand.int_range(0, AMOUNT_OF_LASER_SOUNDS)
 		raylib.PlaySound(game_state.assets.laser_sounds[random_index])
+
+		ray := player_shoot_ray(world.player)
+		closest_hit_distance: f32 = 99999.0
+		hit_enemy_index: int = -1
+
+		for i in 0 ..< MAX_ENEMIES {
+			if world.enemies[i].active {
+				collision := raylib.GetRayCollisionSphere(ray, world.enemies[i].position, 2.0)
+				if collision.hit && collision.distance < closest_hit_distance {
+					closest_hit_distance = collision.distance
+					hit_enemy_index = i
+				}
+			}
+		}
+
+		if hit_enemy_index != -1 {
+			world.enemies[hit_enemy_index].health -= 25.0
+			world.enemies[hit_enemy_index].hurt_timer = 0.15
+			world.hitmarker_timer = 0.2
+			if world.enemies[hit_enemy_index].health <= 0.0 {
+				world.enemies[hit_enemy_index].active = false
+			}
+		}
 	}
 }
 
@@ -160,11 +308,80 @@ world_draw :: proc(world: ^World, game_state: ^Game_State) {
 	r3d.Begin(world.player.camera)
 	raylib.DrawGrid(50, 1.0)
 	world_draw_floor(world, game_state.assets)
+
+	enemy_positions := cast([^]linalg.Vector3f32)r3d.MapInstances(
+		world.enemy_instance_buffer,
+		{.POSITION},
+		false,
+	)
+	enemy_colors := cast([^]raylib.Color)r3d.MapInstances(
+		world.enemy_instance_buffer,
+		{.COLOR},
+		false,
+	)
+
+	active_enemy_count: i32 = 0
+	for i in 0 ..< MAX_ENEMIES {
+		if world.enemies[i].active {
+			enemy_positions[active_enemy_count] = world.enemies[i].position
+			enemy_colors[active_enemy_count] =
+				raylib.RED if world.enemies[i].hurt_timer > 0.0 else raylib.BLUE
+			active_enemy_count += 1
+		}
+	}
+
+	r3d.UnmapInstances(world.enemy_instance_buffer, {.POSITION, .COLOR})
+
+	if active_enemy_count > 0 {
+		r3d.DrawMeshInstanced(
+			game_state.assets.enemy_mesh,
+			r3d.GetDefaultMaterial(),
+			world.enemy_instance_buffer,
+			active_enemy_count,
+		)
+	}
+
+	proj_positions := cast([^]linalg.Vector3f32)r3d.MapInstances(
+		world.projectile_instance_buffer,
+		{.POSITION},
+		false,
+	)
+	proj_rotations := cast([^]linalg.Quaternionf32)r3d.MapInstances(
+		world.projectile_instance_buffer,
+		{.ROTATION},
+		false,
+	)
+	proj_colors := cast([^]raylib.Color)r3d.MapInstances(
+		world.projectile_instance_buffer,
+		{.COLOR},
+		false,
+	)
+
+	active_proj_count: i32 = 0
+	for i in 0 ..< len(world.projectiles) {
+		if world.projectiles[i].active {
+			proj_positions[active_proj_count] = world.projectiles[i].position
+			proj_rotations[active_proj_count] = world.projectiles[i].rotation
+			proj_colors[active_proj_count] = raylib.RED
+			active_proj_count += 1
+		}
+	}
+
+	r3d.UnmapInstances(world.projectile_instance_buffer, {.POSITION, .ROTATION, .COLOR})
+
+	if active_proj_count > 0 {
+		r3d.DrawMeshInstanced(
+			game_state.assets.projectile_mesh,
+			r3d.GetDefaultMaterial(),
+			world.projectile_instance_buffer,
+			active_proj_count,
+		)
+	}
+
 	r3d.End()
 
-
 	raylib.BeginMode2D(game_state.gui_camera)
-	draw_crosshair()
+	draw_crosshair(show_hitmarker = world.hitmarker_timer > 0.0)
 	draw_ui(world)
 	raylib.EndMode2D()
 
@@ -292,4 +509,6 @@ world_draw_floor :: proc(world: ^World, assets: Assets) {
 
 world_destroy :: proc(world: ^World) {
 	r3d.UnloadInstanceBuffer(world.floor_instance_buffer)
+	r3d.UnloadInstanceBuffer(world.enemy_instance_buffer)
+	r3d.UnloadInstanceBuffer(world.projectile_instance_buffer)
 }

@@ -64,12 +64,13 @@ Player :: struct {
 	health:            f32,
 	hurt_timer:        f32,
 }
-player_shoot_ray :: proc(player: Player) {
+
+player_shoot_ray :: proc(player: Player) -> raylib.Ray {
 	screen_center := linalg.Vector2f32 {
 		f32(raylib.GetScreenWidth()) / 2,
 		f32(raylib.GetScreenHeight()) / 2,
 	}
-	ray := raylib.GetScreenToWorldRay(screen_center, player.camera)
+	return raylib.GetScreenToWorldRay(screen_center, player.camera)
 }
 
 player_init :: proc(player: ^Player) {
@@ -93,7 +94,6 @@ player_update :: proc(player: ^Player, assets: Assets) {
 
 	apply_camera_transformations(player)
 	apply_footstep_sound(player, assets)
-	player_shoot_ray(player^)
 }
 
 apply_footstep_sound :: proc(player: ^Player, assets: Assets) {
@@ -221,6 +221,9 @@ apply_velocity_to_position :: proc(player: ^Player, delta_time: f32) {
 		player.velocity.y = 0.0
 		player.is_grounded = true
 	}
+
+	player.position.x = raylib.Clamp(player.position.x, 0.0, f32(WORLD_SIZE_X - 1))
+	player.position.z = raylib.Clamp(player.position.z, 0.0, f32(WORLD_SIZE_Y - 1))
 }
 
 update_camera_stance_and_effects :: proc(
