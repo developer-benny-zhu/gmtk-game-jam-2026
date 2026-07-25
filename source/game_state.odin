@@ -14,10 +14,12 @@ Game_State :: struct {
 	gui_camera:    raylib.Camera2D,
 	scene:         Scene,
 }
+
 game_state_init :: proc(game_state: ^Game_State) {
 	assets_init(&game_state.assets)
 	world_init(&game_state.world)
 }
+
 game_state_update :: proc(game_state: ^Game_State) {
 	switch game_state.scene {
 	case .Splash_Screen:

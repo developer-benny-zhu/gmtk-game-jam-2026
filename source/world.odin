@@ -50,7 +50,8 @@ update_tile_colors :: proc(world: ^World, t: f32) {
 	r3d.UnmapInstances(world.floor_instance_buffer, {.COLOR})
 }
 
-check_player_damage :: proc(world: ^World, delta: f32) {
+check_player_damage :: proc(world: ^World, game_state: Game_State) {
+	delta_time := raylib.GetFrameTime()
 	if world.player.is_grounded {
 		grid_x := int(math.round(world.player.position.x))
 		grid_y := int(math.round(world.player.position.z))
@@ -59,7 +60,8 @@ check_player_damage :: proc(world: ^World, delta: f32) {
 			idx := grid_y * WORLD_SIZE_X + grid_x
 			if world.danger_tiles[idx] {
 				prev_health := int(world.player.health)
-				world.player.health -= DAMAGE_PER_SECOND * delta
+				world.player.health -= DAMAGE_PER_SECOND * delta_time
+				play_random_male_grunt_sound(game_state.assets)
 				world.player.hurt_timer = 0.25
 
 				curr_health := int(world.player.health)
@@ -128,7 +130,7 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 			world.tile_timer = 0.0
 			world.tile_phase = .Lerping_Green
 		} else {
-			check_player_damage(world, delta)
+			check_player_damage(world, game_state^)
 		}
 	case .Lerping_Green:
 		if world.tile_timer >= TILE_LERP_TIME {
