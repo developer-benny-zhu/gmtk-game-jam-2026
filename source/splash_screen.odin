@@ -55,8 +55,7 @@ splash_screen_update :: proc(splash_screen: ^Splash_Screen, game_state: ^Game_St
 		segment_start = GAME_NAME_SEGMENT_START_TIME
 		segment_end = GAME_NAME_SEGMENT_END_TIME
 	case:
-		game_state.scene = .World
-		
+		game_state_switch_scene(game_state, .Main_Menu)
 	}
 
 	tint := raylib.WHITE

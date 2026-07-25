@@ -12,23 +12,28 @@ WORLD_SIZE_X :: 100
 WORLD_SIZE_Y :: 100
 TILE_WAIT_TIME :: 10.0
 TILE_LERP_TIME :: 1.0
+WARNING_TIME :: 2.0
 DAMAGE_PER_SECOND :: 10.0
 MAX_ENEMIES :: 100
 
 Tile_Phase :: enum {
 	Safe,
+	Warning,
 	Lerping_Red,
 	Danger,
 	Lerping_Green,
 }
 
 Enemy :: struct {
-	position:    linalg.Vector3f32,
-	base_y:      f32,
-	health:      f32,
-	hurt_timer:  f32,
-	shoot_timer: f32,
-	active:      bool,
+	position:        linalg.Vector3f32,
+	target_position: linalg.Vector3f32,
+	move_timer:      f32,
+	base_y:          f32,
+	health:          f32,
+	hurt_timer:      f32,
+	shoot_timer:     f32,
+	active:          bool,
+	scale:           linalg.Vector3f32,
 }
 
 Projectile :: struct {
@@ -49,6 +54,37 @@ World :: struct {
 	enemies:                    [MAX_ENEMIES]Enemy,
 	projectiles:                [1000]Projectile,
 	hitmarker_timer:            f32,
+	wave:                       int,
+	is_paused:                  bool,
+	pause_selected_index:       int,
+}
+
+spawn_wave :: proc(world: ^World) {
+	enemy_count := 2 + (world.wave - 1) * 3
+	if enemy_count > MAX_ENEMIES do enemy_count = MAX_ENEMIES
+
+	for i in 0 ..< MAX_ENEMIES {
+		if i < enemy_count {
+			base_y := rand.float32_range(8.0, 25.0)
+			pos := linalg.Vector3f32 {
+				rand.float32_range(10.0, f32(WORLD_SIZE_X) - 10.0),
+				base_y,
+				rand.float32_range(10.0, f32(WORLD_SIZE_Y) - 10.0),
+			}
+			world.enemies[i] = Enemy {
+				position        = pos,
+				target_position = pos,
+				move_timer      = 0.0,
+				base_y          = base_y,
+				health          = 100.0,
+				active          = true,
+				shoot_timer     = rand.float32_range(1.0, 5.0),
+				scale           = {1.0, 1.0, 1.0},
+			}
+		} else {
+			world.enemies[i].active = false
+		}
+	}
 }
 
 lerp_color :: proc(c1, c2: raylib.Color, t: f32) -> raylib.Color {
@@ -60,11 +96,11 @@ lerp_color :: proc(c1, c2: raylib.Color, t: f32) -> raylib.Color {
 	}
 }
 
-update_tile_colors :: proc(world: ^World, t: f32) {
+update_tile_colors :: proc(world: ^World, c1, c2: raylib.Color, t: f32) {
 	colors := cast([^]raylib.Color)r3d.MapInstances(world.floor_instance_buffer, {.COLOR}, false)
 	for i in 0 ..< WORLD_SIZE_X * WORLD_SIZE_Y {
 		if world.danger_tiles[i] {
-			colors[i] = lerp_color(raylib.GREEN, raylib.RED, t)
+			colors[i] = lerp_color(c1, c2, t)
 		} else {
 			colors[i] = raylib.GREEN
 		}
@@ -120,28 +156,44 @@ world_init :: proc(world: ^World) {
 
 	world.tile_phase = .Safe
 	world.tile_timer = 0.0
+	world.wave = 1
+	world.is_paused = false
+	world.pause_selected_index = 0
 
-	world.enemy_instance_buffer = r3d.LoadInstanceBuffer(MAX_ENEMIES, {.POSITION, .COLOR})
-
+	world.enemy_instance_buffer = r3d.LoadInstanceBuffer(MAX_ENEMIES, {.POSITION, .SCALE, .COLOR})
 	world.projectile_instance_buffer = r3d.LoadInstanceBuffer(1000, {.POSITION, .ROTATION, .COLOR})
 
-	for i in 0 ..< MAX_ENEMIES {
-		base_y := rand.float32_range(5.0, 20.0)
-		world.enemies[i] = Enemy {
-			position    = {
-				rand.float32_range(5.0, f32(WORLD_SIZE_X) - 5.0),
-				base_y,
-				rand.float32_range(5.0, f32(WORLD_SIZE_Y) - 5.0),
-			},
-			base_y      = base_y,
-			health      = 100.0,
-			active      = true,
-			shoot_timer = rand.float32_range(1.0, 5.0),
-		}
-	}
+	spawn_wave(world)
 }
 
 world_update :: proc(world: ^World, game_state: ^Game_State) {
+	if raylib.IsKeyPressed(.ESCAPE) {
+		world.is_paused = !world.is_paused
+		if world.is_paused {
+			raylib.EnableCursor()
+		} else {
+			raylib.DisableCursor()
+		}
+	}
+
+	if world.is_paused {
+		if raylib.IsKeyPressed(.DOWN) || raylib.IsKeyPressed(.S) {
+			world.pause_selected_index = (world.pause_selected_index + 1) % 2
+		}
+		if raylib.IsKeyPressed(.UP) || raylib.IsKeyPressed(.W) {
+			world.pause_selected_index = (world.pause_selected_index - 1 + 2) % 2
+		}
+		if raylib.IsKeyPressed(.ENTER) {
+			if world.pause_selected_index == 0 {
+				world.is_paused = false
+				raylib.DisableCursor()
+			} else {
+				game_state_switch_scene(game_state, .Main_Menu)
+			}
+		}
+		return
+	}
+
 	delta := raylib.GetFrameTime()
 	if world.player.hurt_timer > 0.0 {
 		world.player.hurt_timer -= delta
@@ -152,18 +204,76 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 		world.hitmarker_timer -= delta
 	}
 
+	active_enemies := 0
+	ray := player_shoot_ray(world.player)
+
 	for i in 0 ..< MAX_ENEMIES {
 		if world.enemies[i].active {
+			active_enemies += 1
 			if world.enemies[i].hurt_timer > 0.0 {
 				world.enemies[i].hurt_timer -= delta
 			}
 
-			world.enemies[i].position.y =
-				world.enemies[i].base_y + math.sin(f32(raylib.GetTime()) * 2.0 + f32(i)) * 2.0
+			world.enemies[i].move_timer -= delta
+			if world.enemies[i].move_timer <= 0.0 {
+				world.enemies[i].move_timer = rand.float32_range(3.0, 7.0)
+				world.enemies[i].base_y = rand.float32_range(6.0, 28.0)
+				world.enemies[i].target_position = {
+					rand.float32_range(10.0, f32(WORLD_SIZE_X) - 10.0),
+					world.enemies[i].base_y,
+					rand.float32_range(10.0, f32(WORLD_SIZE_Y) - 10.0),
+				}
+			}
+
+			// Smooth interpolation toward target destination with gentle floating wave
+			time := f32(raylib.GetTime())
+			float_offset := math.sin(time * 3.0 + f32(i)) * 1.5
+			target_pos_with_float := world.enemies[i].target_position
+			target_pos_with_float.y += float_offset
+
+			world.enemies[i].position = linalg.lerp(
+				world.enemies[i].position,
+				target_pos_with_float,
+				delta * 2.0,
+			)
+
+			// Dodge player ray line-of-sight
+			dir_to_enemy := raylib.Vector3Normalize(
+				world.enemies[i].position - world.player.position,
+			)
+			dot := linalg.vector_dot(ray.direction, dir_to_enemy)
+			if dot > 0.95 {
+				world.enemies[i].target_position.x += rand.float32_range(-15.0, 15.0)
+				world.enemies[i].target_position.z += rand.float32_range(-15.0, 15.0)
+				world.enemies[i].target_position.x = raylib.Clamp(
+					world.enemies[i].target_position.x,
+					10.0,
+					f32(WORLD_SIZE_X) - 10.0,
+				)
+				world.enemies[i].target_position.z = raylib.Clamp(
+					world.enemies[i].target_position.z,
+					10.0,
+					f32(WORLD_SIZE_Y) - 10.0,
+				)
+			}
+
+			world.enemies[i].scale = linalg.lerp(
+				world.enemies[i].scale,
+				linalg.Vector3f32{1.0, 1.0, 1.0},
+				delta * 6.0,
+			)
 
 			world.enemies[i].shoot_timer -= delta
 			if world.enemies[i].shoot_timer <= 0.0 {
 				world.enemies[i].shoot_timer = rand.float32_range(2.0, 5.0)
+				world.enemies[i].scale = {1.5, 0.4, 1.5}
+
+				// Play positional 3D sound effect for enemy shooting
+				rand_idx := rand.int_range(0, AMOUNT_OF_LASER_SOUNDS)
+				sound := game_state.assets.laser_sounds[rand_idx]
+				set_sound_position(world.player.camera, sound, world.enemies[i].position, 40.0)
+				raylib.PlaySound(sound)
+
 				for j in 0 ..< len(world.projectiles) {
 					if !world.projectiles[j].active {
 						world.projectiles[j].active = true
@@ -175,19 +285,19 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 
 						forward := linalg.Vector3f32{0, 0, 1}
 						axis := linalg.vector_cross(forward, direction)
-						dot := linalg.vector_dot(forward, direction)
-						if math.abs(dot + 1.0) < 0.00001 {
+						proj_dot := linalg.vector_dot(forward, direction)
+						if math.abs(proj_dot + 1.0) < 0.00001 {
 							world.projectiles[j].rotation = linalg.quaternion_angle_axis_f32(
 								math.PI,
 								{0, 1, 0},
 							)
-						} else if math.abs(dot - 1.0) < 0.00001 {
+						} else if math.abs(proj_dot - 1.0) < 0.00001 {
 							world.projectiles[j].rotation = linalg.quaternion_angle_axis_f32(
 								0,
 								{0, 1, 0},
 							)
 						} else {
-							angle := math.acos(raylib.Clamp(dot, -1.0, 1.0))
+							angle := math.acos(raylib.Clamp(proj_dot, -1.0, 1.0))
 							world.projectiles[j].rotation = linalg.quaternion_angle_axis_f32(
 								angle,
 								linalg.vector_normalize(axis),
@@ -233,20 +343,52 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 
 	switch world.tile_phase {
 	case .Safe:
-		if world.tile_timer >= TILE_WAIT_TIME {
+		if active_enemies > 0 {
+			if world.tile_timer >= TILE_WAIT_TIME {
+				world.tile_timer = 0.0
+				world.tile_phase = .Warning
+				danger_chance := raylib.Clamp(0.1 + (f32(world.wave) * 0.05), 0.1, 0.95)
+				for i in 0 ..< WORLD_SIZE_X * WORLD_SIZE_Y {
+					world.danger_tiles[i] = rand.float32() < danger_chance
+				}
+			}
+		} else {
+			world.wave += 1
+			spawn_wave(world)
+			world.tile_timer = 0.0
+		}
+	case .Warning:
+		if world.tile_timer >= WARNING_TIME {
 			world.tile_timer = 0.0
 			world.tile_phase = .Lerping_Red
+		} else {
+			blink := math.sin(world.tile_timer * 20.0) > 0.0
+			colors := cast([^]raylib.Color)r3d.MapInstances(
+				world.floor_instance_buffer,
+				{.COLOR},
+				false,
+			)
 			for i in 0 ..< WORLD_SIZE_X * WORLD_SIZE_Y {
-				world.danger_tiles[i] = rand.float32() < 0.5
+				if world.danger_tiles[i] {
+					colors[i] = blink ? raylib.Color{255, 100, 100, 255} : raylib.GREEN
+				} else {
+					colors[i] = raylib.GREEN
+				}
 			}
+			r3d.UnmapInstances(world.floor_instance_buffer, {.COLOR})
 		}
 	case .Lerping_Red:
 		if world.tile_timer >= TILE_LERP_TIME {
 			world.tile_timer = 0.0
 			world.tile_phase = .Danger
-			update_tile_colors(world, 1.0)
+			update_tile_colors(world, raylib.Color{255, 100, 100, 255}, raylib.RED, 1.0)
 		} else {
-			update_tile_colors(world, world.tile_timer / TILE_LERP_TIME)
+			update_tile_colors(
+				world,
+				raylib.Color{255, 100, 100, 255},
+				raylib.RED,
+				world.tile_timer / TILE_LERP_TIME,
+			)
 		}
 	case .Danger:
 		if world.tile_timer >= TILE_WAIT_TIME {
@@ -259,9 +401,9 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 		if world.tile_timer >= TILE_LERP_TIME {
 			world.tile_timer = 0.0
 			world.tile_phase = .Safe
-			update_tile_colors(world, 0.0)
+			update_tile_colors(world, raylib.RED, raylib.GREEN, 1.0)
 		} else {
-			update_tile_colors(world, 1.0 - (world.tile_timer / TILE_LERP_TIME))
+			update_tile_colors(world, raylib.RED, raylib.GREEN, world.tile_timer / TILE_LERP_TIME)
 		}
 	}
 
@@ -274,7 +416,6 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 		random_index := rand.int_range(0, AMOUNT_OF_LASER_SOUNDS)
 		raylib.PlaySound(game_state.assets.laser_sounds[random_index])
 
-		ray := player_shoot_ray(world.player)
 		closest_hit_distance: f32 = 99999.0
 		hit_enemy_index: int = -1
 
@@ -313,6 +454,11 @@ world_draw :: proc(world: ^World, game_state: ^Game_State) {
 		{.POSITION},
 		false,
 	)
+	enemy_scales := cast([^]linalg.Vector3f32)r3d.MapInstances(
+		world.enemy_instance_buffer,
+		{.SCALE},
+		false,
+	)
 	enemy_colors := cast([^]raylib.Color)r3d.MapInstances(
 		world.enemy_instance_buffer,
 		{.COLOR},
@@ -323,13 +469,14 @@ world_draw :: proc(world: ^World, game_state: ^Game_State) {
 	for i in 0 ..< MAX_ENEMIES {
 		if world.enemies[i].active {
 			enemy_positions[active_enemy_count] = world.enemies[i].position
+			enemy_scales[active_enemy_count] = world.enemies[i].scale
 			enemy_colors[active_enemy_count] =
 				raylib.RED if world.enemies[i].hurt_timer > 0.0 else raylib.BLUE
 			active_enemy_count += 1
 		}
 	}
 
-	r3d.UnmapInstances(world.enemy_instance_buffer, {.POSITION, .COLOR})
+	r3d.UnmapInstances(world.enemy_instance_buffer, {.POSITION, .SCALE, .COLOR})
 
 	if active_enemy_count > 0 {
 		r3d.DrawMeshInstanced(
@@ -383,6 +530,46 @@ world_draw :: proc(world: ^World, game_state: ^Game_State) {
 	draw_crosshair(show_hitmarker = world.hitmarker_timer > 0.0)
 	draw_ui(world)
 	player_draw_hud(&world.player)
+
+	if world.is_paused {
+		raylib.DrawRectangle(
+			0,
+			0,
+			VIRTUAL_WINDOW_WIDTH,
+			VIRTUAL_WINDOW_HEIGHT,
+			raylib.Color{0, 0, 0, 150},
+		)
+
+		raylib.DrawText(
+			"PAUSED",
+			VIRTUAL_WINDOW_WIDTH / 2 - raylib.MeasureText("PAUSED", 60) / 2,
+			200,
+			60,
+			raylib.WHITE,
+		)
+
+		resume_color := world.pause_selected_index == 0 ? raylib.YELLOW : raylib.WHITE
+		raylib.DrawText(
+			"Resume",
+			VIRTUAL_WINDOW_WIDTH / 2 - raylib.MeasureText("Resume", 40) / 2,
+			350,
+			40,
+			resume_color,
+		)
+
+		quit_color := world.pause_selected_index == 1 ? raylib.YELLOW : raylib.WHITE
+		raylib.DrawText(
+			"Quit to Menu",
+			VIRTUAL_WINDOW_WIDTH / 2 - raylib.MeasureText("Quit to Menu", 40) / 2,
+			420,
+			40,
+			quit_color,
+		)
+
+		cursor_y: i32 = world.pause_selected_index == 0 ? 350 : 420
+		raylib.DrawText(">", VIRTUAL_WINDOW_WIDTH / 2 - 150, cursor_y, 40, raylib.YELLOW)
+	}
+
 	raylib.EndMode2D()
 
 	raylib.BeginMode3D(world.player.view_model_camera)
@@ -433,6 +620,10 @@ draw_ui :: proc(world: ^World) {
 		phase_name = "SAFE"
 		total_phase_time = TILE_WAIT_TIME
 		text_color = raylib.GREEN
+	case .Warning:
+		phase_name = "WARNING!"
+		total_phase_time = WARNING_TIME
+		text_color = raylib.ORANGE
 	case .Lerping_Red:
 		phase_name = "SHIFTING!"
 		total_phase_time = TILE_LERP_TIME
@@ -458,6 +649,13 @@ draw_ui :: proc(world: ^World) {
 
 	raylib.DrawText(timer_text, text_x + 3, text_y + 3, font_size, raylib.BLACK)
 	raylib.DrawText(timer_text, text_x, text_y, font_size, text_color)
+
+	wave_text := fmt.ctprintf("WAVE %d", world.wave)
+	wave_text_width := raylib.MeasureText(wave_text, font_size)
+	wave_text_x := i32(VIRTUAL_WINDOW_WIDTH / 2.0) - (wave_text_width / 2)
+
+	raylib.DrawText(wave_text, wave_text_x + 3, 83, font_size, raylib.BLACK)
+	raylib.DrawText(wave_text, wave_text_x, 80, font_size, raylib.WHITE)
 
 	bar_width: f32 = 300.0
 	bar_height: f32 = 30.0

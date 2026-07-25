@@ -175,7 +175,7 @@ main_menu_update :: proc(main_menu: ^Main_Menu, game_state: ^Game_State) {
 		}
 	}
 
-	total_options :: 4
+	total_options :: 3
 	start_y: f32 = 250
 	spacing: f32 = 50
 
@@ -194,9 +194,11 @@ main_menu_update :: proc(main_menu: ^Main_Menu, game_state: ^Game_State) {
 	if raylib.IsKeyPressed(.ENTER) {
 		switch main_menu.selected_index {
 		case 0:
+			game_state_switch_scene(game_state, .World)
 		case 1:
+			game_state_switch_scene(game_state, .Credits)
 		case 2:
-		case 3:
+			run = false
 		}
 	}
 }
@@ -254,7 +256,7 @@ main_menu_draw :: proc(main_menu: ^Main_Menu, game_state: Game_State) {
 
 	draw_text(TITLE, {title_pos.x, title_pos.y}, raylib.GetFontDefault(), 48, .Center)
 
-	menu_options := []string{"Start", "Options", "Credits", "Quit Game"}
+	menu_options := []string{"Start", "Credits", "Quit Game"}
 
 	start_y: f32 = 250
 	spacing: f32 = 50
@@ -326,4 +328,8 @@ main_menu_draw :: proc(main_menu: ^Main_Menu, game_state: Game_State) {
 main_menu_loop :: proc(main_menu: ^Main_Menu, game_state: ^Game_State) {
 	main_menu_update(main_menu, game_state)
 	main_menu_draw(main_menu, game_state^)
+}
+
+main_menu_destroy :: proc(game_state: Game_State) {
+	raylib.StopMusicStream(game_state.assets.main_menu_music)
 }

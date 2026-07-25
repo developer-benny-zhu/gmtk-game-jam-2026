@@ -89,6 +89,7 @@ credits_update :: proc(credits: ^Credits, game_state: ^Game_State) {
 	credits.scroll_y += CREDITS_SCROLL_SPEED * raylib.GetFrameTime()
 
 	if raylib.IsKeyPressed(.ESCAPE) {
+		game_state_switch_scene(game_state, .Main_Menu)
 	}
 }
 
