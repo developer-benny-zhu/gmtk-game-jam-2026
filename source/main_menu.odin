@@ -32,10 +32,10 @@ Main_Menu :: struct {
 	shooting_star_timer: f32,
 	nebula_offset_a:     f32,
 	nebula_offset_b:     f32,
-	initialized:         bool,
 }
 
-main_menu_init :: proc(menu: ^Main_Menu) {
+main_menu_init :: proc(menu: ^Main_Menu, game_state: Game_State) {
+	raylib.PlayMusicStream(game_state.assets.main_menu_music)
 	menu.selected_index = 0
 	menu.cursor_y = 250
 
@@ -78,7 +78,6 @@ main_menu_init :: proc(menu: ^Main_Menu) {
 	}
 
 	menu.shooting_star_timer = SHOOTING_STAR_INTERVAL
-	menu.initialized = true
 }
 
 draw_space_background :: proc(menu: ^Main_Menu) {
@@ -121,10 +120,7 @@ draw_space_background :: proc(menu: ^Main_Menu) {
 }
 
 main_menu_update :: proc(main_menu: ^Main_Menu, game_state: ^Game_State) {
-	if !main_menu.initialized {
-		main_menu_init(main_menu)
-	}
-
+	raylib.UpdateMusicStream(game_state.assets.main_menu_music)
 	gui_camera_update(&game_state.gui_camera)
 
 	dt := raylib.GetFrameTime()

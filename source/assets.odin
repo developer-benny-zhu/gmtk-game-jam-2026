@@ -19,6 +19,7 @@ Assets :: struct {
 	laser_sounds:             [AMOUNT_OF_LASER_SOUNDS]raylib.Sound,
 	male_grunt_sounds:        [AMOUNT_OF_MALE_GRUNT_SOUNDS]raylib.Sound,
 	items:                    [Item_Kind]raylib.Model,
+	main_menu_music:          raylib.Music,
 	skybox:                   r3d.Cubemap,
 	ambient_map:              r3d.AmbientMap,
 	cube:                     r3d.Mesh,
@@ -76,7 +77,7 @@ assets_init :: proc(assets: ^Assets) {
 	assets.cube = r3d.GenMeshCube(1, 1, 1)
 	assets.enemy_mesh = r3d.GenMeshSphere(2.0, 16, 16)
 	assets.projectile_mesh = r3d.GenMeshCube(0.4, 0.4, 2.0)
-
+	assets.main_menu_music = raylib.LoadMusicStream("assets/main_menu_music.ogg")
 	assets.skybox = r3d.LoadCubemap("assets/skybox.png", .AUTO_DETECT)
 	set_environment(assets)
 }
@@ -90,6 +91,7 @@ assets_destroy :: proc(assets: ^Assets) {
 	r3d.UnloadMesh(assets.projectile_mesh)
 	r3d.UnloadAmbientMap(assets.ambient_map)
 	r3d.UnloadCubemap(assets.skybox)
+	raylib.UnloadMusicStream(assets.main_menu_music)
 }
 
 assets_destroy_concrete_footstep_sounds :: proc(assets: ^Assets) {
