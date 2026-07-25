@@ -5,6 +5,7 @@ import "core:math"
 import "core:math/linalg"
 import "core:math/rand"
 import "vendor:raylib"
+
 GRAVITY :: 32.0
 MAX_RUN_SPEED :: 7.5
 MAX_CROUCH_SPEED :: 2.5
@@ -60,8 +61,9 @@ Player :: struct {
 	camera_lean:       linalg.Vector2f32,
 	is_grounded:       bool,
 	view_model:        View_Model,
+	health:            f32,
+	hurt_timer:        f32,
 }
-
 player_shoot_ray :: proc(player: Player) {
 	screen_center := linalg.Vector2f32 {
 		f32(raylib.GetScreenWidth()) / 2,
@@ -71,6 +73,7 @@ player_shoot_ray :: proc(player: Player) {
 }
 
 player_init :: proc(player: ^Player) {
+	player.health = 100.0
 	player.view_model_camera.fovy = 60
 	player.view_model_camera.projection = .PERSPECTIVE
 	player.view_model_camera.up = {0, 1, 0}
