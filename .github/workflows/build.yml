@@ -29,15 +29,10 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           release: false
       
-      - uses: mymindstorm/setup-emsdk@v14
-      
       - uses: actions/checkout@v4
       
       - name: Build desktop
         run: ./build_desktop.sh
-
-      - name: Build web
-        run: ./build_web.sh
 
   build_macos:
     name: MacOS
@@ -50,16 +45,11 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           release: false
-      
-      - uses: mymindstorm/setup-emsdk@v14
 
       - uses: actions/checkout@v4
 
       - name: Build desktop
         run: ./build_desktop.sh
-
-      - name: Build web
-        run: ./build_web.sh
 
   build_windows:
     name: Windows
@@ -70,13 +60,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           release: false
 
-      - uses: mymindstorm/setup-emsdk@v14
-
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
 
       - name: Build desktop
         run: .\build_desktop.bat
-
-      - name: Build web
-        run: .\build_web.bat
