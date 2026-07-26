@@ -4,6 +4,7 @@ import "core:math"
 import "core:math/rand"
 import "vendor:raylib"
 
+
 CREDITS_SCROLL_SPEED :: 80.0
 CREDITS_START_OFFSET :: 100.0
 CREDITS_TITLE_SIZE :: 48
@@ -12,6 +13,8 @@ CREDITS_FOOTER_SIZE :: 20
 CREDITS_LINE_SPACING :: 40.0
 CREDITS_TITLE_SPACING :: 80.0
 CREDITS_FOOTER_SPACING :: 60.0
+
+
 
 Credits :: struct {
 	scroll_y:            f32,

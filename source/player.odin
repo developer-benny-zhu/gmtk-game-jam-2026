@@ -61,6 +61,15 @@ VECTOR_DOWN :: linalg.Vector3f32{0.0, -1.0, 0.0}
 VECTOR_FORWARD :: linalg.Vector3f32{0.0, 0.0, -1.0}
 VECTOR_ZERO :: linalg.Vector3f32{0.0, 0.0, 0.0}
 
+Powerup_Kind :: enum u8 {
+	Stasis,
+	Fire_Bullets,
+	More_Bullets,
+	Life_Steal,
+	Health_Regen,
+	Speed_Boost,
+}
+
 Player :: struct {
 	camera:            raylib.Camera3D,
 	view_model_camera: raylib.Camera3D,
@@ -81,6 +90,7 @@ Player :: struct {
 	view_model:        View_Model,
 	health:            f32,
 	hurt_timer:        f32,
+	powerups:          [Powerup_Kind]int,
 }
 
 player_shoot_ray :: proc(player: Player) -> raylib.Ray {
@@ -106,6 +116,11 @@ player_draw_hud :: proc(player: ^Player) {
 player_update :: proc(player: ^Player, assets: Assets) {
 	delta_time := raylib.GetFrameTime()
 	player.was_grounded = player.is_grounded
+
+	if player.powerups[.Health_Regen] > 0 {
+		player.health += f32(player.powerups[.Health_Regen]) * 2.0 * delta_time
+		player.health = math.clamp(player.health, 0.0, 100.0)
+	}
 
 	apply_mouse_look(player)
 
@@ -288,6 +303,9 @@ apply_friction_and_acceleration :: proc(
 	} else if is_sprinting {
 		maximum_allowed_speed = MAX_RUN_SPEED
 	}
+
+	speed_multiplier := 1.0 + f32(player.powerups[.Speed_Boost]) * 0.15
+	maximum_allowed_speed *= speed_multiplier
 
 	acceleration_amount := raylib.Clamp(
 		maximum_allowed_speed - current_speed,

@@ -30,13 +30,13 @@ Game_State :: struct {
 	is_transitioning: bool,
 }
 
-game_state_switch_scene :: proc(game_state: ^Game_State, $scene: Scene) {
+game_state_switch_scene :: proc(game_state: ^Game_State, scene: Scene) {
 	game_state.next_scene = scene
 	game_state.fade_state = .Fading_Out
 	game_state.is_transitioning = true
 }
 
-_execute_scene_switch :: proc(game_state: ^Game_State, scene: Scene) {
+execute_scene_transition :: proc(game_state: ^Game_State, scene: Scene) {
 	#partial switch scene {
 	case .World:
 		raylib.DisableCursor()
@@ -70,13 +70,12 @@ game_state_init :: proc(game_state: ^Game_State) {
 game_state_update :: proc(game_state: ^Game_State) {
 	delta := raylib.GetFrameTime()
 
-	// Handle Fade Transitions between scenes
 	if game_state.fade_state != .None {
 		if game_state.fade_state == .Fading_Out {
 			game_state.fade_alpha += delta * 2.0
 			if game_state.fade_alpha >= 1.0 {
 				game_state.fade_alpha = 1.0
-				_execute_scene_switch(game_state, game_state.next_scene)
+				execute_scene_transition(game_state, game_state.next_scene)
 				game_state.fade_state = .Fading_In
 			}
 		} else if game_state.fade_state == .Fading_In {
@@ -101,7 +100,6 @@ game_state_update :: proc(game_state: ^Game_State) {
 		credits_loop(&game_state.credits, game_state)
 	}
 
-	// Render global fade overlay if transition is active
 	if game_state.fade_state != .None {
 		raylib.BeginMode2D(game_state.gui_camera)
 		alpha_val := u8(raylib.Clamp(game_state.fade_alpha * 255.0, 0.0, 255.0))

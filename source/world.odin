@@ -5,8 +5,8 @@ import "core:math"
 import "core:math/linalg"
 import "core:math/rand"
 import "vendor/r3d"
-import "vendor:raylib"
 import "vendor:raylib/rlgl"
+import "vendor:raylib"
 
 WORLD_SIZE_X :: 100
 WORLD_SIZE_Y :: 100
@@ -34,6 +34,7 @@ Enemy :: struct {
 	shoot_timer:     f32,
 	active:          bool,
 	scale:           linalg.Vector3f32,
+	on_fire_timer:   f32,
 }
 
 Projectile :: struct {
@@ -41,6 +42,21 @@ Projectile :: struct {
 	velocity: linalg.Vector3f32,
 	rotation: linalg.Quaternionf32,
 	active:   bool,
+}
+
+Player_Projectile :: struct {
+	position: linalg.Vector3f32,
+	velocity: linalg.Vector3f32,
+	active:   bool,
+	life:     f32,
+}
+
+Stasis_Field :: struct {
+	position: linalg.Vector3f32,
+	radius:   f32,
+	damage:   f32,
+	active:   bool,
+	life:     f32,
 }
 
 World :: struct {
@@ -53,6 +69,9 @@ World :: struct {
 	danger_tiles:               [WORLD_SIZE_X * WORLD_SIZE_Y]bool,
 	enemies:                    [MAX_ENEMIES]Enemy,
 	projectiles:                [1000]Projectile,
+	player_projectiles:         [200]Player_Projectile,
+	stasis_fields:              [50]Stasis_Field,
+	cards_sys:                  Cards_System,
 	hitmarker_timer:            f32,
 	wave:                       int,
 	is_paused:                  bool,
@@ -80,6 +99,7 @@ spawn_wave :: proc(world: ^World) {
 				active          = true,
 				shoot_timer     = rand.float32_range(1.0, 5.0),
 				scale           = {1.0, 1.0, 1.0},
+				on_fire_timer   = 0.0,
 			}
 		} else {
 			world.enemies[i].active = false
@@ -159,6 +179,7 @@ world_init :: proc(world: ^World) {
 	world.wave = 1
 	world.is_paused = false
 	world.pause_selected_index = 0
+	world.cards_sys.active = false
 
 	world.enemy_instance_buffer = r3d.LoadInstanceBuffer(MAX_ENEMIES, {.POSITION, .SCALE, .COLOR})
 	world.projectile_instance_buffer = r3d.LoadInstanceBuffer(1000, {.POSITION, .ROTATION, .COLOR})
@@ -166,7 +187,25 @@ world_init :: proc(world: ^World) {
 	spawn_wave(world)
 }
 
+spawn_stasis :: proc(world: ^World, pos: linalg.Vector3f32) {
+	for s in 0 ..< len(world.stasis_fields) {
+		if !world.stasis_fields[s].active {
+			world.stasis_fields[s].active = true
+			world.stasis_fields[s].position = pos
+			world.stasis_fields[s].radius = 4.0 + f32(world.player.powerups[.Stasis]) * 2.0
+			world.stasis_fields[s].damage = 10.0 + f32(world.player.powerups[.Stasis]) * 5.0
+			world.stasis_fields[s].life = 5.0
+			break
+		}
+	}
+}
+
 world_update :: proc(world: ^World, game_state: ^Game_State) {
+	if world.cards_sys.active {
+		cards_update(&world.cards_sys, world, game_state)
+		return
+	}
+
 	if raylib.IsKeyPressed(.ESCAPE) {
 		world.is_paused = !world.is_paused
 		if world.is_paused {
@@ -214,9 +253,21 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 				world.enemies[i].hurt_timer -= delta
 			}
 
+			if world.enemies[i].on_fire_timer > 0.0 {
+				world.enemies[i].on_fire_timer -= delta
+				world.enemies[i].health -= 15.0 * f32(world.player.powerups[.Fire_Bullets]) * delta
+				if world.enemies[i].health <= 0.0 {
+					world.enemies[i].active = false
+				}
+			}
+
+			if !world.enemies[i].active {
+				continue
+			}
+
 			world.enemies[i].move_timer -= delta
 			if world.enemies[i].move_timer <= 0.0 {
-				world.enemies[i].move_timer = rand.float32_range(3.0, 7.0)
+				world.enemies[i].move_timer = rand.float32_range(4.0, 8.0) // Slower re-targeting intervals
 				world.enemies[i].base_y = rand.float32_range(6.0, 28.0)
 				world.enemies[i].target_position = {
 					rand.float32_range(10.0, f32(WORLD_SIZE_X) - 10.0),
@@ -225,26 +276,26 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 				}
 			}
 
-			// Smooth interpolation toward target destination with gentle floating wave
 			time := f32(raylib.GetTime())
-			float_offset := math.sin(time * 3.0 + f32(i)) * 1.5
+			float_offset := math.sin(time * 2.5 + f32(i)) * 1.5 // Smoother float frequency
 			target_pos_with_float := world.enemies[i].target_position
 			target_pos_with_float.y += float_offset
 
+			// Slower and smoother movement lerp (reduced factor from 2.0 to 1.1)
 			world.enemies[i].position = linalg.lerp(
 				world.enemies[i].position,
 				target_pos_with_float,
-				delta * 2.0,
+				delta * 1.1,
 			)
 
-			// Dodge player ray line-of-sight
 			dir_to_enemy := raylib.Vector3Normalize(
 				world.enemies[i].position - world.player.position,
 			)
 			dot := linalg.vector_dot(ray.direction, dir_to_enemy)
 			if dot > 0.95 {
-				world.enemies[i].target_position.x += rand.float32_range(-15.0, 15.0)
-				world.enemies[i].target_position.z += rand.float32_range(-15.0, 15.0)
+				// Smoother, less jarring dodge shifts
+				world.enemies[i].target_position.x += rand.float32_range(-8.0, 8.0)
+				world.enemies[i].target_position.z += rand.float32_range(-8.0, 8.0)
 				world.enemies[i].target_position.x = raylib.Clamp(
 					world.enemies[i].target_position.x,
 					10.0,
@@ -260,15 +311,14 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 			world.enemies[i].scale = linalg.lerp(
 				world.enemies[i].scale,
 				linalg.Vector3f32{1.0, 1.0, 1.0},
-				delta * 6.0,
+				delta * 4.0,
 			)
 
 			world.enemies[i].shoot_timer -= delta
 			if world.enemies[i].shoot_timer <= 0.0 {
-				world.enemies[i].shoot_timer = rand.float32_range(2.0, 5.0)
+				world.enemies[i].shoot_timer = rand.float32_range(2.5, 6.0) // Slower attack rate
 				world.enemies[i].scale = {1.5, 0.4, 1.5}
 
-				// Play positional 3D sound effect for enemy shooting
 				rand_idx := rand.int_range(0, AMOUNT_OF_LASER_SOUNDS)
 				sound := game_state.assets.laser_sounds[rand_idx]
 				set_sound_position(world.player.camera, sound, world.enemies[i].position, 40.0)
@@ -281,7 +331,7 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 						direction := raylib.Vector3Normalize(
 							world.player.position - world.enemies[i].position,
 						)
-						world.projectiles[j].velocity = direction * 30.0
+						world.projectiles[j].velocity = direction * 25.0 // Slightly slower enemy bullets
 
 						forward := linalg.Vector3f32{0, 0, 1}
 						axis := linalg.vector_cross(forward, direction)
@@ -341,6 +391,83 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 		}
 	}
 
+	for p in 0 ..< len(world.player_projectiles) {
+		if world.player_projectiles[p].active {
+			world.player_projectiles[p].position += world.player_projectiles[p].velocity * delta
+			world.player_projectiles[p].life -= delta
+
+			hit := false
+
+			if world.player_projectiles[p].position.y <= 0.0 {
+				hit = true
+				world.player_projectiles[p].position.y = 0.0
+			}
+
+			if !hit {
+				for e in 0 ..< MAX_ENEMIES {
+					if world.enemies[e].active {
+						dist := linalg.vector_length(
+							world.player_projectiles[p].position - world.enemies[e].position,
+						)
+						// Increased enemy hitbox radius from 2.5 to 4.2 to make them much easier to hit
+						if dist < 4.2 {
+							world.enemies[e].health -= 25.0
+							world.enemies[e].hurt_timer = 0.15
+							world.hitmarker_timer = 0.2
+
+							if world.player.powerups[.Fire_Bullets] > 0 {
+								world.enemies[e].on_fire_timer = 5.0
+							}
+							if world.player.powerups[.Life_Steal] > 0 {
+								world.player.health +=
+									f32(world.player.powerups[.Life_Steal]) * 2.5
+								world.player.health = math.clamp(world.player.health, 0.0, 100.0)
+							}
+
+							if world.enemies[e].health <= 0.0 {
+								world.enemies[e].active = false
+							}
+							hit = true
+							break
+						}
+					}
+				}
+			}
+
+			if hit {
+				if world.player.powerups[.Stasis] > 0 {
+					spawn_stasis(world, world.player_projectiles[p].position)
+				}
+				world.player_projectiles[p].active = false
+			} else if world.player_projectiles[p].life <= 0.0 {
+				world.player_projectiles[p].active = false
+			}
+		}
+	}
+
+	for s in 0 ..< len(world.stasis_fields) {
+		if world.stasis_fields[s].active {
+			world.stasis_fields[s].life -= delta
+			if world.stasis_fields[s].life <= 0.0 {
+				world.stasis_fields[s].active = false
+			} else {
+				for e in 0 ..< MAX_ENEMIES {
+					if world.enemies[e].active {
+						dist := linalg.vector_length(
+							world.stasis_fields[s].position - world.enemies[e].position,
+						)
+						if dist < world.stasis_fields[s].radius {
+							world.enemies[e].health -= world.stasis_fields[s].damage * delta
+							if world.enemies[e].health <= 0.0 {
+								world.enemies[e].active = false
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	switch world.tile_phase {
 	case .Safe:
 		if active_enemies > 0 {
@@ -353,9 +480,9 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 				}
 			}
 		} else {
-			world.wave += 1
-			spawn_wave(world)
-			world.tile_timer = 0.0
+			if !world.cards_sys.active {
+				cards_init_for_wave(&world.cards_sys)
+			}
 		}
 	case .Warning:
 		if world.tile_timer >= WARNING_TIME {
@@ -416,25 +543,27 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 		random_index := rand.int_range(0, AMOUNT_OF_LASER_SOUNDS)
 		raylib.PlaySound(game_state.assets.laser_sounds[random_index])
 
-		closest_hit_distance: f32 = 99999.0
-		hit_enemy_index: int = -1
+		base_ray := player_shoot_ray(world.player)
+		bullet_count := 1 + world.player.powerups[.More_Bullets] * 2
 
-		for i in 0 ..< MAX_ENEMIES {
-			if world.enemies[i].active {
-				collision := raylib.GetRayCollisionSphere(ray, world.enemies[i].position, 2.0)
-				if collision.hit && collision.distance < closest_hit_distance {
-					closest_hit_distance = collision.distance
-					hit_enemy_index = i
-				}
+		for b in 0 ..< bullet_count {
+			dir := base_ray.direction
+			if bullet_count > 1 {
+				spread := f32(world.player.powerups[.More_Bullets]) * 0.03
+				dir.x += rand.float32_range(-spread, spread)
+				dir.y += rand.float32_range(-spread, spread)
+				dir.z += rand.float32_range(-spread, spread)
+				dir = raylib.Vector3Normalize(dir)
 			}
-		}
 
-		if hit_enemy_index != -1 {
-			world.enemies[hit_enemy_index].health -= 25.0
-			world.enemies[hit_enemy_index].hurt_timer = 0.15
-			world.hitmarker_timer = 0.2
-			if world.enemies[hit_enemy_index].health <= 0.0 {
-				world.enemies[hit_enemy_index].active = false
+			for p in 0 ..< len(world.player_projectiles) {
+				if !world.player_projectiles[p].active {
+					world.player_projectiles[p].active = true
+					world.player_projectiles[p].position = world.player.camera.position + dir * 1.0
+					world.player_projectiles[p].velocity = dir * 100.0
+					world.player_projectiles[p].life = 3.0
+					break
+				}
 			}
 		}
 	}
@@ -526,10 +655,31 @@ world_draw :: proc(world: ^World, game_state: ^Game_State) {
 
 	r3d.End()
 
+	raylib.BeginMode3D(world.player.camera)
+	for p in 0 ..< len(world.player_projectiles) {
+		if world.player_projectiles[p].active {
+			raylib.DrawSphere(world.player_projectiles[p].position, 0.2, raylib.YELLOW)
+		}
+	}
+	for s in 0 ..< len(world.stasis_fields) {
+		if world.stasis_fields[s].active {
+			raylib.DrawSphere(
+				world.stasis_fields[s].position,
+				world.stasis_fields[s].radius,
+				raylib.Color{138, 43, 226, 120},
+			)
+		}
+	}
+	raylib.EndMode3D()
+
 	raylib.BeginMode2D(game_state.gui_camera)
 	draw_crosshair(show_hitmarker = world.hitmarker_timer > 0.0)
 	draw_ui(world)
 	player_draw_hud(&world.player)
+
+	if world.cards_sys.active {
+		cards_draw(&world.cards_sys)
+	}
 
 	if world.is_paused {
 		raylib.DrawRectangle(
