@@ -142,6 +142,12 @@ credits_draw :: proc(credits: ^Credits, game_state: Game_State) {
 		"Kenney",
 		"For providing Kenney Assets",
 		"",
+		"Raylib Examples",
+		"For being the hub of code examples for which I stole code from",
+		"",
+		"Btw don't check the source code if you don't want to be horrified",
+		"It has accumulated years of technical debt in just 4 days",
+		"",
 		"Thank You For Playing!",
 	}
 

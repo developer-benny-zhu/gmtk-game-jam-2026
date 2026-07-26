@@ -39,7 +39,6 @@ cards_init_for_wave :: proc(sys: ^Cards_System) {
 	}
 	raylib.EnableCursor()
 }
-
 cards_update :: proc(sys: ^Cards_System, world: ^World, game_state: ^Game_State) {
 	delta := raylib.GetFrameTime()
 	sys.timer += delta
@@ -82,7 +81,11 @@ cards_update :: proc(sys: ^Cards_System, world: ^World, game_state: ^Game_State)
 			sys.state = .Idle
 		}
 	case .Idle:
-		mouse_pos := raylib.GetMousePosition()
+		scale_x := f32(raylib.GetScreenWidth()) / f32(VIRTUAL_WINDOW_WIDTH)
+		scale_y := f32(raylib.GetScreenHeight()) / f32(VIRTUAL_WINDOW_HEIGHT)
+		screen_mouse := raylib.GetMousePosition()
+		mouse_pos := raylib.Vector2{screen_mouse.x / scale_x, screen_mouse.y / scale_y}
+
 		if raylib.IsMouseButtonPressed(.LEFT) {
 			for i in 0 ..< 3 {
 				if raylib.CheckCollisionPointRec(mouse_pos, sys.choices[i].rect) {
@@ -107,6 +110,11 @@ cards_draw :: proc(sys: ^Cards_System) {
 		VIRTUAL_WINDOW_HEIGHT,
 		raylib.Color{0, 0, 0, 180},
 	)
+
+	scale_x := f32(raylib.GetScreenWidth()) / f32(VIRTUAL_WINDOW_WIDTH)
+	scale_y := f32(raylib.GetScreenHeight()) / f32(VIRTUAL_WINDOW_HEIGHT)
+	screen_mouse := raylib.GetMousePosition()
+	mouse_pos := raylib.Vector2{screen_mouse.x / scale_x, screen_mouse.y / scale_y}
 
 	for i in 0 ..< 3 {
 		rect := sys.choices[i].rect
@@ -157,7 +165,6 @@ cards_draw :: proc(sys: ^Cards_System) {
 		}
 
 		if sys.state == .Idle {
-			mouse_pos := raylib.GetMousePosition()
 			if raylib.CheckCollisionPointRec(mouse_pos, rect) {
 				raylib.DrawRectangleLinesEx(rect, 6.0, raylib.YELLOW)
 			}

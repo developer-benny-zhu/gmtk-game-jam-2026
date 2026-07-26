@@ -5,8 +5,8 @@ import "core:math"
 import "core:math/linalg"
 import "core:math/rand"
 import "vendor/r3d"
-import "vendor:raylib/rlgl"
 import "vendor:raylib"
+import "vendor:raylib/rlgl"
 
 WORLD_SIZE_X :: 100
 WORLD_SIZE_Y :: 100
@@ -150,9 +150,26 @@ check_player_damage :: proc(world: ^World, game_state: Game_State) {
 		}
 	}
 }
-
 world_init :: proc(world: ^World) {
 	player_init(&world.player)
+
+	world.tile_phase = .Safe
+	world.tile_timer = 0.0
+	world.wave = 1
+	world.is_paused = false
+	world.pause_selected_index = 0
+	world.hitmarker_timer = 0.0
+
+
+	for i in 0 ..< len(world.projectiles) {
+		world.projectiles[i].active = false
+	}
+
+
+	for i in 0 ..< len(world.danger_tiles) {
+		world.danger_tiles[i] = false
+	}
+
 	world.floor_instance_buffer = r3d.LoadInstanceBuffer(
 		WORLD_SIZE_X * WORLD_SIZE_Y,
 		{.POSITION, .COLOR},
@@ -170,16 +187,10 @@ world_init :: proc(world: ^World) {
 		}
 	}
 	r3d.UnmapInstances(world.floor_instance_buffer, {.POSITION, .COLOR})
+
 	light := r3d.CreateLight(.DIR)
 	r3d.SetLightDirection(light, {0, -1, 0})
 	r3d.EnableLight(light)
-
-	world.tile_phase = .Safe
-	world.tile_timer = 0.0
-	world.wave = 1
-	world.is_paused = false
-	world.pause_selected_index = 0
-	world.cards_sys.active = false
 
 	world.enemy_instance_buffer = r3d.LoadInstanceBuffer(MAX_ENEMIES, {.POSITION, .SCALE, .COLOR})
 	world.projectile_instance_buffer = r3d.LoadInstanceBuffer(1000, {.POSITION, .ROTATION, .COLOR})
@@ -267,7 +278,7 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 
 			world.enemies[i].move_timer -= delta
 			if world.enemies[i].move_timer <= 0.0 {
-				world.enemies[i].move_timer = rand.float32_range(4.0, 8.0) // Slower re-targeting intervals
+				world.enemies[i].move_timer = rand.float32_range(4.0, 8.0)
 				world.enemies[i].base_y = rand.float32_range(6.0, 28.0)
 				world.enemies[i].target_position = {
 					rand.float32_range(10.0, f32(WORLD_SIZE_X) - 10.0),
@@ -277,11 +288,10 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 			}
 
 			time := f32(raylib.GetTime())
-			float_offset := math.sin(time * 2.5 + f32(i)) * 1.5 // Smoother float frequency
+			float_offset := math.sin(time * 2.5 + f32(i)) * 1.5
 			target_pos_with_float := world.enemies[i].target_position
 			target_pos_with_float.y += float_offset
 
-			// Slower and smoother movement lerp (reduced factor from 2.0 to 1.1)
 			world.enemies[i].position = linalg.lerp(
 				world.enemies[i].position,
 				target_pos_with_float,
@@ -293,7 +303,6 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 			)
 			dot := linalg.vector_dot(ray.direction, dir_to_enemy)
 			if dot > 0.95 {
-				// Smoother, less jarring dodge shifts
 				world.enemies[i].target_position.x += rand.float32_range(-8.0, 8.0)
 				world.enemies[i].target_position.z += rand.float32_range(-8.0, 8.0)
 				world.enemies[i].target_position.x = raylib.Clamp(
@@ -316,7 +325,7 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 
 			world.enemies[i].shoot_timer -= delta
 			if world.enemies[i].shoot_timer <= 0.0 {
-				world.enemies[i].shoot_timer = rand.float32_range(2.5, 6.0) // Slower attack rate
+				world.enemies[i].shoot_timer = rand.float32_range(2.5, 6.0)
 				world.enemies[i].scale = {1.5, 0.4, 1.5}
 
 				rand_idx := rand.int_range(0, AMOUNT_OF_LASER_SOUNDS)
@@ -331,7 +340,7 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 						direction := raylib.Vector3Normalize(
 							world.player.position - world.enemies[i].position,
 						)
-						world.projectiles[j].velocity = direction * 25.0 // Slightly slower enemy bullets
+						world.projectiles[j].velocity = direction * 25.0
 
 						forward := linalg.Vector3f32{0, 0, 1}
 						axis := linalg.vector_cross(forward, direction)
@@ -409,7 +418,6 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 						dist := linalg.vector_length(
 							world.player_projectiles[p].position - world.enemies[e].position,
 						)
-						// Increased enemy hitbox radius from 2.5 to 4.2 to make them much easier to hit
 						if dist < 4.2 {
 							world.enemies[e].health -= 25.0
 							world.enemies[e].hurt_timer = 0.15
@@ -537,6 +545,11 @@ world_update :: proc(world: ^World, game_state: ^Game_State) {
 	view_model_update(&world.player.view_model)
 	gui_camera_update(&game_state.gui_camera)
 	player_update(&world.player, game_state.assets)
+
+	if world.player.health <= 0.0 {
+		game_state_switch_scene(game_state, .Game_Over)
+		return
+	}
 
 	if raylib.IsMouseButtonPressed(.LEFT) {
 		view_model_add_recoil(&world.player.view_model)

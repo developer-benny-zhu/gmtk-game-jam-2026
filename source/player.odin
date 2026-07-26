@@ -103,6 +103,28 @@ player_shoot_ray :: proc(player: Player) -> raylib.Ray {
 
 player_init :: proc(player: ^Player) {
 	player.health = 100.0
+	player.position = {0.0, 0.0, 0.0}
+	player.velocity = {0.0, 0.0, 0.0}
+	player.direction = {0.0, 0.0, 0.0}
+	player.look_rotation = {0.0, 0.0}
+	player.head_bob_timer = 0.0
+	player.walk_bob_lerp = 0.0
+	player.head_height_lerp = 0.0
+	player.camera_lean = {0.0, 0.0}
+	player.is_grounded = true
+	player.was_grounded = true
+	player.is_sliding = false
+	player.slide_timer = 0.0
+	player.landing_kick_lerp = 0.0
+	player.breath_timer = 0.0
+	player.hurt_timer = 0.0
+
+
+	player.view_model.recoil_position = {0.0, 0.0, 0.0}
+	player.view_model.recoil_rotation = {0.0, 0.0, 0.0}
+	player.view_model.target_position = {0.0, 0.0, 0.0}
+	player.view_model.target_rotation = {0.0, 0.0, 0.0}
+
 	player.view_model_camera.fovy = 60.0
 	player.view_model_camera.projection = .PERSPECTIVE
 	player.view_model_camera.up = {0.0, 1.0, 0.0}

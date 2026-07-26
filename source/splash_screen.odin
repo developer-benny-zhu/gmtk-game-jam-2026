@@ -26,6 +26,9 @@ Splash_Screen :: struct {
 	current_time: f32,
 }
 
+splash_screen_init :: proc(splash_screen: ^Splash_Screen) {
+	splash_screen.current_time = 0
+}
 splash_screen_update :: proc(splash_screen: ^Splash_Screen, game_state: ^Game_State) {
 	gui_camera_update(&game_state.gui_camera)
 	splash_screen.current_time += raylib.GetFrameTime()

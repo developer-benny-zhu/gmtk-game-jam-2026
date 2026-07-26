@@ -8,6 +8,7 @@ Scene :: enum u8 {
 	Main_Menu,
 	World,
 	Credits,
+	Game_Over,
 }
 
 Fade_State :: enum u8 {
@@ -22,6 +23,7 @@ Game_State :: struct {
 	splash_screen:    Splash_Screen,
 	main_menu:        Main_Menu,
 	credits:          Credits,
+	game_over:        Game_Over,
 	gui_camera:       raylib.Camera2D,
 	scene:            Scene,
 	next_scene:       Scene,
@@ -30,13 +32,13 @@ Game_State :: struct {
 	is_transitioning: bool,
 }
 
-game_state_switch_scene :: proc(game_state: ^Game_State, scene: Scene) {
+game_state_switch_scene :: proc(game_state: ^Game_State, $scene: Scene) {
 	game_state.next_scene = scene
 	game_state.fade_state = .Fading_Out
 	game_state.is_transitioning = true
 }
 
-execute_scene_transition :: proc(game_state: ^Game_State, scene: Scene) {
+_execute_scene_switch :: proc(game_state: ^Game_State, scene: Scene) {
 	#partial switch scene {
 	case .World:
 		raylib.DisableCursor()
@@ -50,21 +52,25 @@ execute_scene_transition :: proc(game_state: ^Game_State, scene: Scene) {
 		raylib.EnableCursor()
 		credits_init(&game_state.credits)
 		game_state.scene = .Credits
-	case .Splash_Screen:
-		raylib.DisableCursor()
-		game_state.scene = .Splash_Screen
-	}
-	if game_state.scene != .Main_Menu && scene != .Main_Menu {
+	case .Game_Over:
+		raylib.EnableCursor()
+		game_over_init(&game_state.game_over)
+		game_state.scene = .Game_Over
 	}
 }
 
 game_state_init :: proc(game_state: ^Game_State) {
 	assets_init(&game_state.assets)
+	game_state.gui_camera = raylib.Camera2D {
+		zoom = 1.0,
+	}
 	game_state.scene = .Splash_Screen
-	game_state.fade_alpha = 0.0
-	game_state.fade_state = .None
-	game_state.is_transitioning = false
-	game_state_switch_scene(game_state, .Splash_Screen)
+	splash_screen_init(&game_state.splash_screen)
+}
+
+game_state_destroy :: proc(game_state: ^Game_State) {
+	assets_destroy(&game_state.assets)
+	world_destroy(&game_state.world)
 }
 
 game_state_update :: proc(game_state: ^Game_State) {
@@ -75,7 +81,7 @@ game_state_update :: proc(game_state: ^Game_State) {
 			game_state.fade_alpha += delta * 2.0
 			if game_state.fade_alpha >= 1.0 {
 				game_state.fade_alpha = 1.0
-				execute_scene_transition(game_state, game_state.next_scene)
+				_execute_scene_switch(game_state, game_state.next_scene)
 				game_state.fade_state = .Fading_In
 			}
 		} else if game_state.fade_state == .Fading_In {
@@ -98,22 +104,19 @@ game_state_update :: proc(game_state: ^Game_State) {
 		main_menu_loop(&game_state.main_menu, game_state)
 	case .Credits:
 		credits_loop(&game_state.credits, game_state)
+	case .Game_Over:
+		game_over_loop(&game_state.game_over, game_state)
 	}
 
-	if game_state.fade_state != .None {
-		raylib.BeginMode2D(game_state.gui_camera)
-		alpha_val := u8(raylib.Clamp(game_state.fade_alpha * 255.0, 0.0, 255.0))
+	if game_state.fade_alpha > 0.0 {
+		raylib.BeginDrawing()
 		raylib.DrawRectangle(
 			0,
 			0,
 			VIRTUAL_WINDOW_WIDTH,
 			VIRTUAL_WINDOW_HEIGHT,
-			raylib.Color{0, 0, 0, alpha_val},
+			raylib.Color{0, 0, 0, u8(game_state.fade_alpha * 255.0)},
 		)
-		raylib.EndMode2D()
+		raylib.EndDrawing()
 	}
-}
-
-game_state_destroy :: proc(game_state: ^Game_State) {
-	assets_destroy(&game_state.assets)
 }

@@ -10,15 +10,18 @@ VIRTUAL_WINDOW_HEIGHT :: 648
 VIRTUAL_WINDOW_CENTER_X :: VIRTUAL_WINDOW_WIDTH / 2
 VIRTUAL_WINDOW_CENTER_Y :: VIRTUAL_WINDOW_HEIGHT / 2
 LETTER_BOX_COLOR :: raylib.BLACK
-TITLE :: "Stellar"
+TITLE :: "Attack Of The Blue Balls"
 
 
 game_state: Game_State
 run: bool
 
+
+// Turn off resizable window cuz it is giving me hard time
+
 init :: proc() {
 	run = true
-	raylib.SetConfigFlags({.WINDOW_RESIZABLE, .WINDOW_HIGHDPI, .VSYNC_HINT})
+	raylib.SetConfigFlags({.WINDOW_HIGHDPI, .VSYNC_HINT})
 	raylib.InitWindow(VIRTUAL_WINDOW_WIDTH, VIRTUAL_WINDOW_HEIGHT, TITLE)
 	raylib.InitAudioDevice()
 	r3d.Init(VIRTUAL_WINDOW_WIDTH, VIRTUAL_WINDOW_HEIGHT)
